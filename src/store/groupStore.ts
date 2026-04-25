@@ -10,8 +10,8 @@ import {
   VIRTUAL_RECENTLY_WATCHED,
 } from "./constants";
 import { usePlayerStore } from "./playerStore";
-import { useSearchStore } from "./searchStore";
 import { usePlaylistStore } from "./playlistStore";
+import { useSearchStore } from "./searchStore";
 import { useSettingsStore } from "./settingsStore";
 
 export interface GroupState {

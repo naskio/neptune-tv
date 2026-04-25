@@ -150,8 +150,8 @@ export const usePlaylistStore = create<PlaylistState & PlaylistActions>()((set) 
           });
           dismissToast(PROGRESS_TOAST_ID);
           notifySuccess("toast.importCompleteSkipped", importCompleteVars(c));
-          const { onPlaylistImported } = await import("./index");
-          await onPlaylistImported();
+          const { onPlaylistImported } = await import("./browseLifecycle");
+          await onPlaylistImported(hp);
         },
         onError: (err) => {
           const n = NeptuneClientError.fromUnknown(err);
@@ -166,8 +166,8 @@ export const usePlaylistStore = create<PlaylistState & PlaylistActions>()((set) 
             });
             dismissToast(PROGRESS_TOAST_ID);
             notifyErrorMessage(n.message);
-            const { onPlaylistImportFailed } = await import("./index");
-            onPlaylistImportFailed();
+            const { onPlaylistImportFailed } = await import("./browseLifecycle");
+            onPlaylistImportFailed(hp);
           })();
         },
         onCancelled: () => {
@@ -181,8 +181,8 @@ export const usePlaylistStore = create<PlaylistState & PlaylistActions>()((set) 
             });
             dismissToast(PROGRESS_TOAST_ID);
             notifyInfo("toast.importCancelled");
-            const { onPlaylistImportFailed } = await import("./index");
-            onPlaylistImportFailed();
+            const { onPlaylistImportFailed } = await import("./browseLifecycle");
+            onPlaylistImportFailed(hp);
           })();
         },
       });
@@ -255,7 +255,7 @@ export const usePlaylistStore = create<PlaylistState & PlaylistActions>()((set) 
         error: null,
       });
       dismissToast(PROGRESS_TOAST_ID);
-      const { resetBrowseStores } = await import("./index");
+      const { resetBrowseStores } = await import("./browseLifecycle");
       resetBrowseStores();
     },
   };

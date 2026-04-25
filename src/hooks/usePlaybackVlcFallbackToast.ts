@@ -1,3 +1,4 @@
+import { listen } from "@tauri-apps/api/event";
 import { useEffect } from "react";
 
 import { notifyErrorKey } from "@/lib/toast";
@@ -17,7 +18,6 @@ export function usePlaybackVlcFallbackToast() {
     }
     let unlisten: (() => void) | undefined;
     void (async () => {
-      const { listen } = await import("@tauri-apps/api/event");
       unlisten = await listen(EVENT, () => {
         notifyErrorKey("toast.vlcFallback", {}, { id: "playback-vlc-fallback" });
       });

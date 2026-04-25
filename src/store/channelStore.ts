@@ -10,7 +10,9 @@ import {
   VIRTUAL_RECENTLY_WATCHED,
 } from "./constants";
 import { useGroupStore } from "./groupStore";
+import { usePlayerStore } from "./playerStore";
 import { usePlaylistStore } from "./playlistStore";
+import { useSearchStore } from "./searchStore";
 import { useSettingsStore } from "./settingsStore";
 
 export interface ChannelState {
@@ -141,8 +143,6 @@ export const useChannelStore = create<ChannelState & ChannelActions>()((set, get
 
   toggleBookmark: async (id) => {
     const prevItems = get().items;
-    const { usePlayerStore } = await import("./playerStore");
-    const { useSearchStore } = await import("./searchStore");
     const prevPlayer = usePlayerStore.getState();
     const prevSearch = useSearchStore.getState();
     const channelFromAnyList =
@@ -203,7 +203,6 @@ export const useChannelStore = create<ChannelState & ChannelActions>()((set, get
     }
     try {
       await adapter.setChannelBlocked(id, value);
-      const { usePlayerStore } = await import("./playerStore");
       await Promise.all([
         usePlayerStore.getState().refreshBlocked(),
         usePlayerStore.getState().refreshFavorites(),
