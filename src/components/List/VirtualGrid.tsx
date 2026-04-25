@@ -2,12 +2,8 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 
-import {
-  useVirtualGrid,
-  VIRTUAL_GRID_CARD_WIDTH_PX,
-  VIRTUAL_GRID_GAP_X_PX,
-} from "@/hooks/useVirtualGrid";
-import { cn } from "@/lib/utils";
+import { useVirtualGrid } from "@/hooks/useVirtualGrid";
+import { cn, getRootRemPx } from "@/lib/utils";
 
 export type VirtualGridHandle = {
   scrollToItemIndex: (itemIndex: number) => void;
@@ -30,14 +26,8 @@ export type VirtualGridProps = {
   scrollParentRef?: React.RefObject<HTMLElement | null>;
 };
 
-/** Initial row height before `measureElement` runs (card + text block ≈ real size). */
-const DEFAULT_ROW = 224;
-
-/** Space between virtualized rows (matches horizontal `gap-x-4`). */
-const ROW_GAP_PX = 16;
-
 /**
- * Row-virtualized grid: fixed card width (see `VIRTUAL_GRID_CARD_WIDTH_PX`), column count from container width.
+ * Row-virtualized grid: fixed card width in rem, column count from container width.
  */
 const VirtualGridInner = function VirtualGridInner(
   {
@@ -47,7 +37,7 @@ const VirtualGridInner = function VirtualGridInner(
     onLoadMore,
     hasMore,
     empty,
-    estimateRowHeight = DEFAULT_ROW,
+    estimateRowHeight,
     className,
     scrollParentRef,
   }: VirtualGridProps,
@@ -57,7 +47,9 @@ const VirtualGridInner = function VirtualGridInner(
   const internalScrollRef = React.useRef<HTMLDivElement>(null);
   const widthRef = React.useRef<HTMLDivElement>(null);
   const rootRef = scrollParentRef != null ? widthRef : internalScrollRef;
-  const { columnCount } = useVirtualGrid(rootRef);
+  const { columnCount, cardWidthPx, gapXPx, defaultRowHeightPx } = useVirtualGrid(rootRef);
+  const rem = getRootRemPx();
+  const resolvedRowEstimate = estimateRowHeight ?? defaultRowHeightPx;
   const rowCount = Math.max(0, Math.ceil(items.length / columnCount));
   const loadMoreRow = Boolean(hasMore && onLoadMore);
   const count = rowCount + (loadMoreRow ? 1 : 0);
@@ -72,11 +64,11 @@ const VirtualGridInner = function VirtualGridInner(
   const virtualizer = useVirtualizer({
     count,
     getScrollElement,
-    estimateSize: () => estimateRowHeight,
+    estimateSize: () => resolvedRowEstimate,
     overscan: 4,
-    gap: ROW_GAP_PX,
-    paddingStart: ROW_GAP_PX,
-    paddingEnd: ROW_GAP_PX,
+    gap: gapXPx,
+    paddingStart: gapXPx,
+    paddingEnd: gapXPx,
   });
 
   const scrollToItemIndex = React.useCallback(
@@ -108,13 +100,13 @@ const VirtualGridInner = function VirtualGridInner(
           onLoadMore();
         }
       },
-      { root, rootMargin: "200px" },
+      { root, rootMargin: `${12.5 * rem}px` },
     );
     io.observe(el);
     return () => {
       io.disconnect();
     };
-  }, [getScrollElement, onLoadMore, loadMoreRow, rowCount, items.length]);
+  }, [getScrollElement, onLoadMore, loadMoreRow, rowCount, items.length, rem]);
 
   return (
     <div
@@ -157,10 +149,10 @@ const VirtualGridInner = function VirtualGridInner(
               className="absolute start-0 top-0 grid w-full items-start justify-start"
               style={{
                 boxSizing: "border-box",
-                columnGap: VIRTUAL_GRID_GAP_X_PX,
-                gridTemplateColumns: `repeat(${columnCount}, ${VIRTUAL_GRID_CARD_WIDTH_PX}px)`,
-                paddingInlineStart: VIRTUAL_GRID_GAP_X_PX,
-                paddingInlineEnd: VIRTUAL_GRID_GAP_X_PX,
+                columnGap: gapXPx,
+                gridTemplateColumns: `repeat(${columnCount}, ${cardWidthPx}px)`,
+                paddingInlineStart: gapXPx,
+                paddingInlineEnd: gapXPx,
                 transform: `translateY(${v.start}px)`,
               }}
             >

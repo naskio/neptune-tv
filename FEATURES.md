@@ -7,8 +7,8 @@ Product and behaviour reference. Technical implementation details are in `CLAUDE
 ## Overview
 
 Cross-platform desktop IPTV browser (macOS, Windows, Linux). Opens large M3U8 playlists (local or remote, up to 500 MB+,
-1 M+ entries), organises channels into groups, and hands off stream URLs to the OS default player. **Does not play
-video.**
+1 M+ entries), organises channels into groups, and hands off each channel’s `stream_url` (HTTP(S) HLS and similar) to
+**VLC** when it is installed; otherwise to the OS default URL handler (often a browser). **Does not play video in-app.**
 
 - One active playlist at a time — opening a new one wipes all existing data.
 - Playlist survives app restarts (no reload required).
@@ -37,7 +37,7 @@ Channels with no `group-title` are placed in an auto-created `"Uncategorized"` g
 | `id`            | Auto-increment PK — also used as insertion-order sort key for Default sort.                                                             |
 | `name`          | Display name — text after the last `,` on the `#EXTINF` line (non-unique).                                                              |
 | `group_title`   | FK → `groups.title`. `"Uncategorized"` when `group-title` is absent.                                                                    |
-| `stream_url`    | Playback URL handed to the OS player.                                                                                                   |
+| `stream_url`    | Playback URL handed to VLC when available, else the OS default handler.                                                                 |
 | `logo_url`      | From `tvg-logo`. Defaults to `/channel-default.svg` if empty.                                                                           |
 | `duration`      | Integer seconds from `#EXTINF:<n>`. `-1` means live/unknown; positive means VOD.                                                        |
 | `tvg_id`        | From `tvg-id`. `NULL` when empty. Reserved for future EPG integration.                                                                  |
@@ -168,12 +168,18 @@ section.
 
 ### Channel Actions
 
-| Action   | Trigger                                                                   |
-| -------- | ------------------------------------------------------------------------- |
-| Play     | Primary click — opens `stream_url` in the OS default player.              |
-| Bookmark | Star icon on card — optimistic toggle.                                    |
-| Block    | Context menu — channel hidden from all listings; visible on Blocked page. |
-| Copy URL | Context menu — copies `stream_url` to clipboard.                          |
+| Action   | Trigger                                                                                                             |
+| -------- | ------------------------------------------------------------------------------------------------------------------- |
+| Play     | Primary click — opens `stream_url` in **VLC** if found (macOS / Windows / Linux), otherwise the OS default handler. |
+| Bookmark | Star icon on card — optimistic toggle.                                                                              |
+| Block    | Context menu — channel hidden from all listings; visible on Blocked page.                                           |
+| Copy URL | Context menu — copies `stream_url` to clipboard.                                                                    |
+
+### External playback
+
+- Stream URLs (`http` / `https`, HLS `.m3u8`, etc.) are meant for an external player; Neptune does not embed a player.
+- **VLC** is launched when the app can find it (app bundle / `PATH` / common Windows install paths / Flatpak / Snap — see `CLAUDE.md`). Install VLC for reliable HLS playback.
+- If VLC is not available, the app uses the OS default URL handler (often a browser), which may not play the stream.
 
 ### Group Actions
 

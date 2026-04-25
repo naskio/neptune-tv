@@ -1,6 +1,7 @@
 mod cursor;
 mod db;
 mod error;
+mod external_player;
 mod events;
 mod importer;
 mod parser;
@@ -14,7 +15,6 @@ use events::{emit_cancelled, emit_complete, emit_error, ImportCompleteEvent};
 use importer::pipeline::{run_import, ImportSource};
 use state::{AppState, ImportHandle, ImportPhase, ImportProgress};
 use tauri::Manager;
-use tauri_plugin_opener::OpenerExt;
 use types::{Channel, ChannelPage, GroupDetail, GroupPage, PlaylistMeta, SearchResults};
 use validation::{
     resolve_limit, validate_id, validate_local_path, validate_optional_cursor,
@@ -380,9 +380,7 @@ async fn play_channel(
 ) -> Result<(), NeptuneError> {
     let id = validate_id(id, "id")?;
     let stream_url = db::channels::get_channel_stream_url(&state.pool, id).await?;
-    app.opener()
-        .open_url(stream_url.as_str(), None::<&str>)
-        .map_err(|err| NeptuneError::InvalidRequest(err.to_string()))?;
+    external_player::open_stream_in_external_player(&app, stream_url.as_str())?;
     db::channels::mark_channel_watched(&state.pool, id).await?;
     Ok(())
 }

@@ -20,6 +20,7 @@ most IPTV players (like VLC or Web-based ones) lag or crash when loading a 40MB 
 - _Group Virtualization_: Instant scrolling through thousands of categories.
 - _Global Search_: Find any channel in milliseconds.
 - _Cross-Platform_: Runs on Windows, macOS, and Linux.
+- _External playback_: Channel streams open in **VLC** when it is installed (recommended for HLS / `.m3u8` URLs); otherwise the OS default handler is used.
 
 ## Tech Stack
 

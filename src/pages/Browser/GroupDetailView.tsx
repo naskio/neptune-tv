@@ -12,7 +12,8 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
-import { AZIndexBar, firstIndexForLetter } from "@/components/List/AZIndexBar";
+import { AZIndexBar } from "@/components/List/AZIndexBar";
+import { firstIndexForLetter } from "@/components/List/azIndexUtils";
 import type { VirtualGridHandle } from "@/components/List/VirtualGrid";
 import { VirtualGrid } from "@/components/List/VirtualGrid";
 import { VirtualHorizontalRow } from "@/components/List/VirtualHorizontalRow";

@@ -48,7 +48,13 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/*
+ * Global UI scale: all rem-based Tailwind utilities and shadcn tokens track this
+ * (type, spacing, radii, component heights). Tied to the user-agent base size
+ * for accessibility (unlike a fixed `px` on `html`).
+ */
 :root {
+  --app-ui-scale: 1.125;
   --background: oklch(1 0 0);
   --foreground: oklch(0.145 0 0);
   --card: oklch(1 0 0);
@@ -126,5 +132,7 @@
   }
   html {
     @apply font-sans;
+    /* `100%` = UA default (typically 16px); --app-ui-scale nudges the whole rem system. */
+    font-size: calc(100% * var(--app-ui-scale, 1));
   }
 }

@@ -1,13 +1,18 @@
 import { useLayoutEffect, useState } from "react";
 
-/** Fixed shadcn `Card` lane width in the virtual grid; column count derives from container width + gap. */
-export const VIRTUAL_GRID_CARD_WIDTH_PX = 160;
+import { getRootRemPx } from "@/lib/utils";
 
-/** Horizontal gap between cards (`gap-x-4`); must match `VirtualGrid` row `columnGap`. */
-export const VIRTUAL_GRID_GAP_X_PX = 16;
+/**
+ * Card column width in rem (10rem = 160px at 16px root); must match the grid
+ * `gridTemplateColumns` in `VirtualGrid`.
+ */
+export const VIRTUAL_GRID_CARD_WIDTH_REM = 10;
 
-/** Horizontal edge padding on virtual grid rows (kept equal to inter-card gap). */
-const VIRTUAL_GRID_EDGE_PADDING_X_PX = VIRTUAL_GRID_GAP_X_PX * 2;
+/** Horizontal gap between cards in rem (1rem = `gap-x-4` at 16px root). */
+export const VIRTUAL_GRID_GAP_X_REM = 1;
+
+/** Default row body height in rem (image + text block, ≈ 224px at 16px root). */
+export const VIRTUAL_GRID_DEFAULT_ROW_REM = 14;
 
 function readWidthFromResizeEntry(entry: ResizeObserverEntry): number {
   const cr = entry.contentRect.width;
@@ -22,7 +27,7 @@ function readWidthFromResizeEntry(entry: ResizeObserverEntry): number {
 }
 
 /**
- * Column count for virtualized grids: fixed card width (`VIRTUAL_GRID_CARD_WIDTH_PX`) and
+ * Column count for virtualized grids: card width and gap in rem (see `VIRTUAL_*_REM`) and
  * `floor((width + gap) / (cardWidth + gap))`, minimum 1.
  *
  * Uses `useLayoutEffect` so the first measurement happens synchronously after DOM commit,
@@ -34,6 +39,9 @@ function readWidthFromResizeEntry(entry: ResizeObserverEntry): number {
 export function useVirtualGrid(containerRef: React.RefObject<HTMLElement | null>): {
   columnCount: number;
   width: number;
+  cardWidthPx: number;
+  gapXPx: number;
+  defaultRowHeightPx: number;
 } {
   const [width, setWidth] = useState(0);
 
@@ -119,9 +127,18 @@ export function useVirtualGrid(containerRef: React.RefObject<HTMLElement | null>
     };
   }, [containerRef]);
 
-  const slot = VIRTUAL_GRID_CARD_WIDTH_PX + VIRTUAL_GRID_GAP_X_PX;
-  const usableWidth = Math.max(0, width - VIRTUAL_GRID_EDGE_PADDING_X_PX);
-  const columnCount =
-    usableWidth > 0 ? Math.max(1, Math.floor((usableWidth + VIRTUAL_GRID_GAP_X_PX) / slot)) : 1;
-  return { columnCount, width };
+  const rem = getRootRemPx();
+  const cardWidthPx = VIRTUAL_GRID_CARD_WIDTH_REM * rem;
+  const gapXPx = VIRTUAL_GRID_GAP_X_REM * rem;
+  const edgePaddingPx = gapXPx * 2;
+  const slot = cardWidthPx + gapXPx;
+  const usableWidth = Math.max(0, width - edgePaddingPx);
+  const columnCount = usableWidth > 0 ? Math.max(1, Math.floor((usableWidth + gapXPx) / slot)) : 1;
+  return {
+    columnCount,
+    width,
+    cardWidthPx,
+    gapXPx,
+    defaultRowHeightPx: VIRTUAL_GRID_DEFAULT_ROW_REM * rem,
+  };
 }

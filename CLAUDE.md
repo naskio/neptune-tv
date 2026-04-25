@@ -254,7 +254,10 @@ mapping is in `FEATURES.md` (Data Model → Channels).
 
 ### External Playback
 
-`tauri-plugin-opener` is already installed. `playerStore` calls `adapter.openChannel(url)` — never `invoke()` directly.
+`play_channel` loads the channel’s `stream_url` and opens it in **VLC** when available: macOS (`open -a VLC`), Windows
+(`vlc` on `PATH` or standard `Program Files` paths), Linux (`vlc` on `PATH`, `flatpak run org.videolan.VLC`, or `snap run vlc`). If none of
+those succeed, it falls back to `tauri-plugin-opener` (`open_url`), which may open a browser. `playerStore` calls
+`adapter.playChannel(id)` — never `invoke()` directly from components.
 
 ---
 
@@ -322,7 +325,8 @@ mapping is in `FEATURES.md` (Data Model → Channels).
    in the parser.
 8. Cursor-based pagination — never `OFFSET`.
 9. Cross-platform — `#[cfg(target_os)]` for any platform-specific code; all three targets must build.
-10. No video player — no `<video>`, HLS.js, or codec; playback via `tauri-plugin-opener`.
+10. No in-app video player — no `<video>`, HLS.js, or codec; playback is delegated to VLC when installed, else
+    `tauri-plugin-opener`.
 
 ---
 

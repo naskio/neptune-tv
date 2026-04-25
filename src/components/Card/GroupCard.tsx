@@ -59,7 +59,9 @@ export function GroupCard({
           <p className="line-clamp-2 text-xs leading-tight font-medium" title={group.title}>
             {group.title}
           </p>
-          <p className="text-[10px] text-muted-foreground">{t("card.channelCount", { count })}</p>
+          <p className="text-[0.625rem] text-muted-foreground">
+            {t("card.channelCount", { count })}
+          </p>
         </div>
       </Card>
     </GroupContextMenu>

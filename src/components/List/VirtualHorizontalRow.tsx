@@ -1,7 +1,7 @@
 import { useVirtualizer } from "@tanstack/react-virtual";
 import * as React from "react";
 
-import { cn } from "@/lib/utils";
+import { cn, getRootRemPx } from "@/lib/utils";
 
 type VirtualHorizontalRowProps = {
   items: unknown[];
@@ -12,9 +12,10 @@ type VirtualHorizontalRowProps = {
   empty?: React.ReactNode;
 };
 
-const DEFAULT_W = 200;
-const CARD_GAP_PX = 12;
-const HORIZONTAL_SCROLLBAR_GUTTER_PX = 10;
+/** Lane width in rem (12.5rem = 200px at 16px root; matches `w-[12.5rem]` below). */
+const LANE_WIDTH_REM = 12.5;
+const CARD_GAP_REM = 0.75;
+const HORIZONTAL_SCROLLBAR_GUTTER_REM = 0.625;
 const ROW_HEIGHT_CLASS = "h-48";
 
 /**
@@ -24,21 +25,26 @@ export function VirtualHorizontalRow({
   items,
   getKey,
   renderItem,
-  estimateWidth = DEFAULT_W,
+  estimateWidth,
   className,
   empty,
 }: VirtualHorizontalRowProps) {
   const parentRef = React.useRef<HTMLDivElement>(null);
+  const rem = getRootRemPx();
+  const defaultLanePx = LANE_WIDTH_REM * rem;
+  const cardGapPx = CARD_GAP_REM * rem;
+  const scrollbarGutterPx = HORIZONTAL_SCROLLBAR_GUTTER_REM * rem;
+  const resolvedEstimate = estimateWidth ?? defaultLanePx;
 
   const virtualizer = useVirtualizer({
     horizontal: true,
     count: items.length,
     getScrollElement: () => parentRef.current,
-    estimateSize: () => estimateWidth,
+    estimateSize: () => resolvedEstimate,
     overscan: 3,
-    gap: CARD_GAP_PX,
-    paddingStart: CARD_GAP_PX,
-    paddingEnd: CARD_GAP_PX,
+    gap: cardGapPx,
+    paddingStart: cardGapPx,
+    paddingEnd: cardGapPx,
   });
 
   if (items.length === 0) {
@@ -50,9 +56,9 @@ export function VirtualHorizontalRow({
       ref={parentRef}
       className={cn("w-full overflow-x-auto overflow-y-hidden", className)}
       style={{
-        paddingTop: CARD_GAP_PX,
+        paddingTop: cardGapPx,
         // Keep card bottoms visible when a horizontal scrollbar is shown.
-        paddingBottom: CARD_GAP_PX + HORIZONTAL_SCROLLBAR_GUTTER_PX,
+        paddingBottom: cardGapPx + scrollbarGutterPx,
       }}
     >
       <div
@@ -71,7 +77,7 @@ export function VirtualHorizontalRow({
                 transform: `translateX(${v.start}px)`,
               }}
             >
-              <div className="w-[200px]">{renderItem(it, v.index)}</div>
+              <div className="w-[12.5rem]">{renderItem(it, v.index)}</div>
             </div>
           );
         })}

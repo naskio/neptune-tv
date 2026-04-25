@@ -30,7 +30,7 @@
     "copyright": "Copyright © 2026 Mehdi Nassim KHODJA",
     "category": "Entertainment",
     "shortDescription": "Blazing-Fast IPTV M3U8 Player",
-    "longDescription": "Cross-platform desktop IPTV browser. Opens large M3U8 playlists, organises channels into groups, and hands stream URLs to the OS default player.",
+    "longDescription": "Cross-platform desktop IPTV browser. Opens large M3U8 playlists, organises channels into groups, and opens stream URLs in VLC when installed, otherwise the OS default handler.",
     "icon": [
       "icons/32x32.png",
       "icons/192x192.png",

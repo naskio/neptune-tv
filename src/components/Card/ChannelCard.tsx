@@ -58,7 +58,10 @@ export function ChannelCard({
           <p className="line-clamp-2 text-xs leading-tight font-medium" title={channel.name}>
             {channel.name}
           </p>
-          <p className="line-clamp-1 text-[10px] text-muted-foreground" title={channel.groupTitle}>
+          <p
+            className="line-clamp-1 text-[0.625rem] text-muted-foreground"
+            title={channel.groupTitle}
+          >
             {channel.groupTitle}
           </p>
         </div>
