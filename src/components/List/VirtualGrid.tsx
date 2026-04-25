@@ -15,6 +15,8 @@ export type VirtualGridProps = {
   renderItem: (item: unknown, index: number) => React.ReactNode;
   onLoadMore?: () => void;
   hasMore?: boolean;
+  /** When set, "Loading more…" only shows while this is true; the sentinel row stays for infinite scroll. */
+  loadingMore?: boolean;
   empty?: React.ReactNode;
   estimateRowHeight?: number;
   className?: string;
@@ -36,6 +38,7 @@ const VirtualGridInner = function VirtualGridInner(
     renderItem,
     onLoadMore,
     hasMore,
+    loadingMore,
     empty,
     estimateRowHeight,
     className,
@@ -130,12 +133,12 @@ const VirtualGridInner = function VirtualGridInner(
                   virtualizer.measureElement(node);
                 }}
                 data-index={v.index}
-                className="absolute start-0 top-0 flex w-full items-center justify-center py-3 text-xs text-muted-foreground"
+                className="absolute start-0 top-0 flex min-h-12 w-full items-center justify-center py-3 text-xs text-muted-foreground"
                 style={{
                   transform: `translateY(${v.start}px)`,
                 }}
               >
-                {t("list.loadingMore")}
+                {loadingMore ? t("list.loadingMore") : null}
               </div>
             );
           }

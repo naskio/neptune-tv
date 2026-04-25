@@ -265,7 +265,7 @@ export const useSearchStore = create<SearchState & SearchActions>()((set, get) =
       set((s) => ({
         scopedResults: {
           items: [...s.scopedResults.items, ...page.items],
-          nextCursor: page.nextCursor,
+          nextCursor: page.items.length === 0 ? null : page.nextCursor,
         },
         scopedLoading: false,
       }));

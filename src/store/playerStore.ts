@@ -166,7 +166,7 @@ export const usePlayerStore = create<PlayerState & PlayerActions>()((set, get) =
       });
       set((s) => ({
         favoriteItems: [...s.favoriteItems, ...page.items],
-        favoriteNextCursor: page.nextCursor,
+        favoriteNextCursor: page.items.length === 0 ? null : page.nextCursor,
         loading: false,
       }));
     } catch (e) {

@@ -39,6 +39,7 @@ export function GroupDetailView() {
   const recentlyWatched = usePlayerStore((s) => s.recentlyWatched);
   const loadMoreFavorites = usePlayerStore((s) => s.loadMoreFavorites);
   const channelItems = useChannelStore((s) => s.items);
+  const channelLoading = useChannelStore((s) => s.loading);
   const chNext = useChannelStore((s) => s.nextCursor);
   const chLoadMore = useChannelStore((s) => s.loadMore);
   const scoped = useSearchStore((s) => s.scopedResults);
@@ -46,15 +47,33 @@ export function GroupDetailView() {
   const loadMoreScoped = useSearchStore((s) => s.loadMoreScoped);
   const setScoped = useSearchStore((s) => s.setScopedQuery);
   const scopedQueryStr = useSearchStore((s) => s.scopedQuery);
+  const scopedLoading = useSearchStore((s) => s.scopedLoading);
   const sortMode = useSettingsStore((s) => s.sortMode);
+  const playerLoading = usePlayerStore((s) => s.loading);
   const { isChannelFocused } = useFocusedItem();
   const gridRef = React.useRef<VirtualGridHandle | null>(null);
   const pageScrollRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const el = pageScrollRef.current;
+    if (el) {
+      el.scrollTop = 0;
+      el.scrollLeft = 0;
+    }
+  }, [activeTitle]);
 
   const isFav = activeTitle === VIRTUAL_FAVORITE_CHANNELS;
   const isRw = activeTitle === VIRTUAL_RECENTLY_WATCHED;
   const isRealGroup = !isFav && !isRw;
   const searching = scopedQ.trim().length > 0;
+
+  const loadingMore = searching
+    ? scopedLoading
+    : isFav
+      ? playerLoading && favoriteItems.length > 0
+      : isRw
+        ? false
+        : channelLoading && channelItems.length > 0;
   const favoriteInGroup = React.useMemo(
     () => favoriteItems.filter((c) => c.groupTitle === activeTitle),
     [activeTitle, favoriteItems],
@@ -204,6 +223,7 @@ export function GroupDetailView() {
           items={list}
           getKey={(c) => (c as Channel).id}
           hasMore={hasMore}
+          loadingMore={loadingMore}
           onLoadMore={onLoadMore}
           empty={
             <EmptyState

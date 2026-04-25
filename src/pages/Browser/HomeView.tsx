@@ -30,8 +30,10 @@ export function HomeView() {
   const favoriteItems = usePlayerStore((s) => s.favoriteItems);
   const recentlyWatched = usePlayerStore((s) => s.recentlyWatched);
   const groups = useGroupStore((s) => s.items);
+  const groupLoading = useGroupStore((s) => s.loading);
   const loadMore = useGroupStore((s) => s.loadMore);
   const hasMore = useGroupStore((s) => s.nextCursor != null);
+  const loadingMore = groupLoading && groups.length > 0;
   const { isChannelFocused, isGroupFocused } = useFocusedItem();
 
   const favStrip = favoriteItems.slice(0, 20);
@@ -166,6 +168,7 @@ export function HomeView() {
           items={groups}
           getKey={(g) => (g as Group).title}
           hasMore={hasMore}
+          loadingMore={loadingMore}
           onLoadMore={() => {
             void loadMore();
           }}

@@ -85,7 +85,7 @@ export const useGroupStore = create<GroupState & GroupActions>()((set, get) => (
       });
       set((s) => ({
         items: [...s.items, ...page.items],
-        nextCursor: page.nextCursor,
+        nextCursor: page.items.length === 0 ? null : page.nextCursor,
         loading: false,
       }));
     } catch (e) {
