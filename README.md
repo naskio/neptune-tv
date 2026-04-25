@@ -52,3 +52,12 @@ yarn install
 ```shell
 yarn tauri dev
 ```
+
+## File Structure
+
+| Path       |                  Description                  |
+|------------|:---------------------------------------------:|
+| public/    | Contains static assets like images and videos |
+| index.html | The main HTML file for the app (entry point)  |
+| src/       |  Contains all the React components and logic  |
+| src-tauri/ |  Contains Rust code and Tauri configuration   |
