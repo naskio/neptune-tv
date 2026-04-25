@@ -1,5 +1,6 @@
 {
   "name": "neptune-tv",
+  "description": "Blazing-Fast IPTV M3U8 Player",
   "private": true,
   "version": "0.1.0",
   "type": "module",

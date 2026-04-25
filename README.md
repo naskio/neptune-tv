@@ -1,6 +1,9 @@
-# 🪐🔱 Neptune TV
 
-*The lightweight IPTV powerhouse.*
+<div align="center">
+    <img src="public/neptune.svg" alt="Neptune TV Logo" width="140" />
+    <h1>Neptune TV</h1>
+    <em>Blazing-Fast IPTV M3U8 Player</em>
+</div>
 
 Neptune TV is a desktop IPTV application engineered for speed. Unlike traditional players that struggle with large
 playlists, Neptune uses a Rust-driven SQLite core to index and filter millions of entries instantly.
