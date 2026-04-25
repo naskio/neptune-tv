@@ -27,7 +27,7 @@ export function SortToggle() {
             type="button"
             size="sm"
             variant={mode === m ? "secondary" : "ghost"}
-            className={cn("h-7 gap-1 rounded-md px-2 text-xs", "max-sm:px-1.5")}
+            className={cn("gap-1.5 rounded-md", "max-sm:px-1.5")}
             aria-pressed={mode === m}
             aria-label={fullLabel}
             title={fullLabel}

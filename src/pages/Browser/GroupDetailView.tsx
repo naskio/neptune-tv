@@ -94,13 +94,13 @@ export function GroupDetailView() {
       <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
-          className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground"
+          className="inline-flex min-h-10 items-center gap-1.5 text-base text-muted-foreground hover:text-foreground"
           onClick={() => {
             void useGroupStore.getState().selectGroup(null);
             useSearchStore.getState().clearScopedQuery();
           }}
         >
-          <ChevronLeftIcon className="size-4 rtl:rotate-180" />
+          <ChevronLeftIcon className="size-5 rtl:rotate-180" />
           {t("groupDetail.home")}
         </button>
         <span className="text-muted-foreground">{t("groupDetail.breadcrumbSeparator")}</span>

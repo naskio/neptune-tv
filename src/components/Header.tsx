@@ -40,7 +40,7 @@ export function AppHeader() {
   return (
     <header className="sticky top-0 z-40 border-b border-border bg-background/95 py-2 backdrop-blur">
       <div className="flex flex-col gap-2 px-3 md:px-4">
-        <div className="flex min-h-8 flex-wrap items-center gap-2">
+        <div className="flex min-h-10 flex-wrap items-center gap-2">
           {!blocked ? (
             <Button
               type="button"
