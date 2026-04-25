@@ -19,22 +19,23 @@ export type ImportPhase = "idle" | "running" | "completed" | "cancelled" | "fail
 
 export interface Group {
   title: string;
-  logoUrl: string;
+  /** Backend may return null/empty; UI fallback is handled in `CardImage`. */
+  logoUrl: string | null;
   sortOrder: number;
   isBookmarked: number;
   blockedAt: Timestamp | null;
-}
-
-export interface GroupDetail extends Group {
   channelCount: number;
 }
+
+export interface GroupDetail extends Group {}
 
 export interface Channel {
   id: ChannelId;
   name: string;
   groupTitle: string;
   streamUrl: string;
-  logoUrl: string;
+  /** Backend may return null/empty; UI fallback is handled in `CardImage`. */
+  logoUrl: string | null;
   duration: number;
   tvgId: string | null;
   tvgName: string | null;

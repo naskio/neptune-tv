@@ -3,7 +3,12 @@ import { create } from "zustand";
 import { adapter } from "@/lib/adapter";
 import { NeptuneClientError, type Channel, type Cursor } from "@/lib/types";
 
-import { PAGE_SIZE, VIRTUAL_FAVORITE_CHANNELS, VIRTUAL_RECENTLY_WATCHED } from "./constants";
+import {
+  PAGE_SIZE,
+  VIRTUAL_FAVORITE_CHANNELS,
+  VIRTUAL_FAVORITE_GROUPS,
+  VIRTUAL_RECENTLY_WATCHED,
+} from "./constants";
 import { useGroupStore } from "./groupStore";
 import { usePlaylistStore } from "./playlistStore";
 import { useSettingsStore } from "./settingsStore";
@@ -58,7 +63,11 @@ export const useChannelStore = create<ChannelState & ChannelActions>()((set, get
 
   loadFirstPage: async (groupTitle) => {
     const title = groupTitle ?? useGroupStore.getState().activeGroupTitle ?? undefined;
-    if (title === VIRTUAL_FAVORITE_CHANNELS || title === VIRTUAL_RECENTLY_WATCHED) {
+    if (
+      title === VIRTUAL_FAVORITE_CHANNELS ||
+      title === VIRTUAL_RECENTLY_WATCHED ||
+      title === VIRTUAL_FAVORITE_GROUPS
+    ) {
       set({
         items: [],
         nextCursor: null,
@@ -132,21 +141,58 @@ export const useChannelStore = create<ChannelState & ChannelActions>()((set, get
 
   toggleBookmark: async (id) => {
     const prevItems = get().items;
-    const ch = prevItems.find((c) => c.id === id);
-    if (!ch) {
+    const { usePlayerStore } = await import("./playerStore");
+    const { useSearchStore } = await import("./searchStore");
+    const prevPlayer = usePlayerStore.getState();
+    const prevSearch = useSearchStore.getState();
+    const channelFromAnyList =
+      prevItems.find((c) => c.id === id) ??
+      prevPlayer.favoriteItems.find((c) => c.id === id) ??
+      prevPlayer.recentlyWatched.find((c) => c.id === id) ??
+      prevPlayer.recentInGroup.find((c) => c.id === id) ??
+      prevSearch.scopedResults.items.find((c) => c.id === id) ??
+      prevSearch.globalResults.channels.find((c) => c.id === id);
+    if (!channelFromAnyList) {
       return;
     }
-    const nextVal = ch.bookmarkedAt == null;
+    const nextVal = channelFromAnyList.bookmarkedAt == null;
     const now = Math.floor(Date.now() / 1000);
+    const patch = (list: Channel[]) =>
+      list.map((c) => (c.id === id ? { ...c, bookmarkedAt: nextVal ? now : null } : c));
     set({
-      items: prevItems.map((c) => (c.id === id ? { ...c, bookmarkedAt: nextVal ? now : null } : c)),
+      items: patch(prevItems),
+    });
+    usePlayerStore.setState({
+      favoriteItems: patch(prevPlayer.favoriteItems),
+      recentlyWatched: patch(prevPlayer.recentlyWatched),
+      recentInGroup: patch(prevPlayer.recentInGroup),
+      blockedChannels: patch(prevPlayer.blockedChannels),
+    });
+    useSearchStore.setState({
+      scopedResults: {
+        ...prevSearch.scopedResults,
+        items: patch(prevSearch.scopedResults.items),
+      },
+      globalResults: {
+        ...prevSearch.globalResults,
+        channels: patch(prevSearch.globalResults.channels),
+      },
     });
     try {
       await adapter.setChannelBookmarked(id, nextVal);
-      const { usePlayerStore } = await import("./playerStore");
       void usePlayerStore.getState().refreshFavorites();
     } catch (e) {
       set({ items: prevItems, error: NeptuneClientError.fromUnknown(e) });
+      usePlayerStore.setState({
+        favoriteItems: prevPlayer.favoriteItems,
+        recentlyWatched: prevPlayer.recentlyWatched,
+        recentInGroup: prevPlayer.recentInGroup,
+        blockedChannels: prevPlayer.blockedChannels,
+      });
+      useSearchStore.setState({
+        scopedResults: prevSearch.scopedResults,
+        globalResults: prevSearch.globalResults,
+      });
     }
   },
 
@@ -158,7 +204,23 @@ export const useChannelStore = create<ChannelState & ChannelActions>()((set, get
     try {
       await adapter.setChannelBlocked(id, value);
       const { usePlayerStore } = await import("./playerStore");
-      void usePlayerStore.getState().refreshBlocked();
+      await Promise.all([
+        usePlayerStore.getState().refreshBlocked(),
+        usePlayerStore.getState().refreshFavorites(),
+        usePlayerStore.getState().refreshRecentlyWatched(),
+      ]);
+      const activeGroupTitle = useGroupStore.getState().activeGroupTitle;
+      if (
+        activeGroupTitle &&
+        activeGroupTitle !== VIRTUAL_FAVORITE_CHANNELS &&
+        activeGroupTitle !== VIRTUAL_FAVORITE_GROUPS &&
+        activeGroupTitle !== VIRTUAL_RECENTLY_WATCHED
+      ) {
+        await usePlayerStore.getState().loadRecentInGroup(activeGroupTitle);
+      }
+      // Channel block/unblock changes persisted per-group counts; refresh list-backed
+      // groups so Home cards always reflect the DB truth.
+      void useGroupStore.getState().loadFirstPage();
       if (!value) {
         void get().loadFirstPage();
       }

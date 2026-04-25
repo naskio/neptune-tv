@@ -59,6 +59,7 @@ export const en = {
     badge: {
       imported: "Imported {{when}}",
       stats: "{{channels, number}} ch · {{groups, number}} groups",
+      detailsButton: "Playlist import details",
     },
   },
 
@@ -100,7 +101,9 @@ export const en = {
   groupDetail: {
     home: "Home",
     breadcrumbSeparator: "›",
+    actions: "Group actions",
     scopedSearch: "Search in this group…",
+    favoriteChannels: "Favorite channels",
     recentInGroup: "Recently watched in this group",
     empty: {
       noChannelsTitle: "No channels",
@@ -110,6 +113,7 @@ export const en = {
 
   virtualGroups: {
     favoriteChannels: "Favorite Channels",
+    favoriteGroups: "Favorite Groups",
     recentlyWatched: "Recently Watched",
   },
 
@@ -119,6 +123,8 @@ export const en = {
     nothingDescription: "You do not have any blocked groups or channels.",
     groupsHeading: "Blocked groups",
     channelsHeading: "Blocked channels",
+    groupsEmptyWithChannels: "No blocked groups. You only have blocked channels.",
+    channelsEmptyWithGroups: "No blocked channels. You only have blocked groups.",
     unblock: "Unblock",
     loadMore: "Load more",
   },
@@ -128,7 +134,8 @@ export const en = {
     confirm: "Confirm",
     openDifferent: {
       title: "Open a different playlist?",
-      description: "The current playlist will be removed. This cannot be undone.",
+      description:
+        "The current playlist will be removed and all playlist data will be lost. This cannot be undone.",
       confirmLabel: "Continue",
     },
     closePlaylist: {
@@ -169,6 +176,7 @@ export const en = {
 
   sidebar: {
     heading: "Groups",
+    closeSheet: "Close",
   },
 
   contextMenu: {
@@ -188,6 +196,7 @@ export const en = {
     importCompleteSkipped_other:
       "Imported {{channels, number}} channels, {{groups, number}} groups. {{skipped, number}} entries skipped.",
     importCancelled: "Import cancelled.",
+    ipcFailed: "Something went wrong ({{command}}): {{message}}",
   },
 
   windowTitle: {
@@ -203,12 +212,18 @@ export const en = {
     invalidQuery: "Invalid query",
     invalidUrl: "Invalid URL",
     urlRequired: "URL is required",
+    urlTooLong: "URL is too long",
     invalidUrlFormat: "Must be a valid URL",
     schemeNotAllowed: "Only http and https schemes are allowed",
     pathRequired: "Path is required",
+    pathTooLong: "Path is too long",
     queryEmpty: "Query cannot be empty",
     queryTooLong: "Query is too long",
     cursorEmpty: "Cursor cannot be empty",
+    titleEmpty: "Title cannot be empty",
+    titleTooLong: "Title is too long",
+    idMustBeInt: "ID must be an integer",
+    idMustBePositive: "ID must be positive",
   },
 
   picker: {

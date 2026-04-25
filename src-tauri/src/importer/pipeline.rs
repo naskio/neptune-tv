@@ -12,7 +12,7 @@ use crate::{
     error::NeptuneError,
     events::{emit_progress, ImportProgressEvent},
     parser::{
-        extinf::{group_default_logo, parse_extinf_line},
+        extinf::{parse_extinf_line, UNCATEGORIZED},
         types::{ParsedChannel, ParsedExtInf},
     },
     state::ImportHandle,
@@ -20,6 +20,29 @@ use crate::{
 
 const INSERT_BATCH_SIZE: usize = 1_000;
 const PROGRESS_STEP: u64 = 10_000;
+
+const EXTGRP_PREFIX: &[u8] = b"#EXTGRP:";
+
+/// Returns `Some(None)` for `#EXTGRP:` with an empty title (clears context).
+/// Returns `Some(Some(title))` when a non-empty group title is set.
+/// Returns `None` when the line is not an `#EXTGRP:` directive.
+fn parse_extgrp_line(line: &str) -> Option<Option<String>> {
+    let bytes = line.as_bytes();
+    if bytes.first().copied() != Some(b'#') {
+        return None;
+    }
+    if bytes.len() < EXTGRP_PREFIX.len() {
+        return None;
+    }
+    if !bytes[..EXTGRP_PREFIX.len()].eq_ignore_ascii_case(EXTGRP_PREFIX) {
+        return None;
+    }
+    let rest = line.get(EXTGRP_PREFIX.len()..)?.trim();
+    if rest.is_empty() {
+        return Some(None);
+    }
+    Some(Some(rest.to_owned()))
+}
 
 #[derive(Debug, Clone)]
 pub enum ImportSource {
@@ -102,6 +125,21 @@ pub async fn run_import(
     }
 
     flush_channels(Some(app), &mut tx, &mut state).await?;
+    // Refresh persisted per-group counts after import. We do this once per import
+    // (instead of per-row updates) to keep large imports fast.
+    sqlx::query(
+        r#"
+        UPDATE groups
+        SET channel_count = (
+            SELECT COUNT(1)
+            FROM channels c
+            WHERE c.group_title = groups.title
+              AND c.blocked_at IS NULL
+        )
+        "#,
+    )
+    .execute(&mut *tx)
+    .await?;
     tx.commit().await?;
 
     Ok(ImportSummary {
@@ -119,6 +157,8 @@ struct ImportParserState {
     skipped: u64,
     seen_groups: HashSet<String>,
     group_sort_order: HashMap<String, i64>,
+    /// Last `#EXTGRP:` title; following channels without `group-title` inherit this (IPTV convention).
+    extgrp_context: Option<String>,
 }
 
 async fn process_line(
@@ -137,7 +177,17 @@ async fn process_line(
         return Ok(());
     }
 
-    if let Some(parsed) = parse_extinf_line(trimmed) {
+    if let Some(extgrp_title) = parse_extgrp_line(trimmed) {
+        state.extgrp_context = extgrp_title;
+        return Ok(());
+    }
+
+    if let Some(mut parsed) = parse_extinf_line(trimmed) {
+        if parsed.channel.group_title == UNCATEGORIZED {
+            if let Some(ref g) = state.extgrp_context {
+                parsed.channel.group_title = g.clone();
+            }
+        }
         state.pending_extinf = Some(parsed);
         return Ok(());
     }
@@ -174,14 +224,13 @@ async fn ensure_group(
         .insert(group_title.to_owned(), sort_order);
     sqlx::query(
         r#"
-        INSERT INTO groups (title, logo_url, sort_order, is_bookmarked, blocked_at)
-        VALUES (?, ?, ?, 0, NULL)
+        INSERT INTO groups (title, sort_order, is_bookmarked, blocked_at)
+        VALUES (?, ?, 0, NULL)
         ON CONFLICT(title) DO NOTHING
         "#,
     )
     .bind(group_title)
-    .bind(group_default_logo())
-    .bind(sort_order)
+     .bind(sort_order)
     .execute(&mut **tx)
     .await?;
     Ok(())
@@ -267,6 +316,19 @@ async fn run_import_from_lines(
     }
 
     flush_channels(None, &mut tx, &mut state).await?;
+    sqlx::query(
+        r#"
+        UPDATE groups
+        SET channel_count = (
+            SELECT COUNT(1)
+            FROM channels c
+            WHERE c.group_title = groups.title
+              AND c.blocked_at IS NULL
+        )
+        "#,
+    )
+    .execute(&mut *tx)
+    .await?;
     tx.commit().await?;
 
     Ok(ImportSummary {
@@ -281,7 +343,12 @@ mod tests {
     use sqlx::{sqlite::SqlitePoolOptions, SqlitePool};
 
     use super::run_import_from_lines;
-    use crate::{db::migrations, error::NeptuneError, state::ImportHandle};
+    use crate::{
+        cursor::SortMode,
+        db::{channels::list_channels_in_group, migrations},
+        error::NeptuneError,
+        state::ImportHandle,
+    };
 
     async fn setup_pool() -> SqlitePool {
         let pool = SqlitePoolOptions::new()
@@ -291,6 +358,68 @@ mod tests {
             .expect("in-memory sqlite should connect");
         migrations::run(&pool).await.expect("migrations should run");
         pool
+    }
+
+    #[tokio::test]
+    async fn import_from_lines_maps_uppercase_group_title_attribute() {
+        let pool = setup_pool().await;
+        let handle = ImportHandle::new();
+        let lines = vec![
+            r#"#EXTINF:-1 GROUP-TITLE="News",News 24"#,
+            "https://example.com/news24",
+        ];
+
+        run_import_from_lines(&pool, &lines, &handle)
+            .await
+            .expect("import should succeed");
+
+        let group_title: String =
+            sqlx::query_scalar("SELECT group_title FROM channels WHERE name = 'News 24' LIMIT 1")
+                .fetch_one(&pool)
+                .await
+                .expect("channel row should exist");
+        assert_eq!(group_title, "News");
+
+        // Same path as Tauri `list_channels_in_group` / UI: guards against "group exists, list empty"
+        // when `channels.group_title` does not match `groups.title` after import.
+        for sort in [SortMode::Default, SortMode::Name] {
+            let page = list_channels_in_group(&pool, "News", sort, None, 50)
+                .await
+                .expect("list channels in group should succeed");
+            assert_eq!(page.items.len(), 1, "{sort:?}");
+            assert_eq!(page.items[0].name, "News 24");
+        }
+    }
+
+    #[tokio::test]
+    async fn import_from_lines_applies_extgrp_when_group_title_missing() {
+        let pool = setup_pool().await;
+        let handle = ImportHandle::new();
+        let lines = vec![
+            "#EXTGRP:Movies",
+            r#"#EXTINF:-1,Cinema One"#,
+            "https://example.com/c1",
+        ];
+
+        run_import_from_lines(&pool, &lines, &handle)
+            .await
+            .expect("import should succeed");
+
+        let group_title: String = sqlx::query_scalar(
+            "SELECT group_title FROM channels WHERE name = 'Cinema One' LIMIT 1",
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("channel row should exist");
+        assert_eq!(group_title, "Movies");
+
+        for sort in [SortMode::Default, SortMode::Name] {
+            let page = list_channels_in_group(&pool, "Movies", sort, None, 50)
+                .await
+                .expect("list channels in group should succeed");
+            assert_eq!(page.items.len(), 1, "{sort:?}");
+            assert_eq!(page.items[0].name, "Cinema One");
+        }
     }
 
     #[tokio::test]
@@ -322,8 +451,15 @@ mod tests {
             .fetch_one(&pool)
             .await
             .expect("group count query should succeed");
+        let persisted_channels: i64 = sqlx::query_scalar(
+            "SELECT COALESCE(SUM(channel_count), 0) FROM groups",
+        )
+        .fetch_one(&pool)
+        .await
+        .expect("persisted group channel counts query should succeed");
         assert_eq!(db_channels, 2);
         assert_eq!(db_groups, 2);
+        assert_eq!(persisted_channels, 2);
     }
 
     #[tokio::test]

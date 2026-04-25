@@ -9,10 +9,13 @@ import { BrowserPage } from "@/pages/BrowserPage";
 import { BlockedPage } from "@/pages/BlockedPage";
 import { ShortcutsModal } from "@/components/Modal/ShortcutsModal";
 import { ConfirmDialog } from "@/components/Modal/ConfirmDialog";
-import { NotificationsBridge } from "@/components/Notifications/NotificationsBridge";
 
 /**
  * Top-level layout: simple route switch + cross-cutting side effects.
+ *
+ * Toasts are emitted directly from store actions / `errorReportingAdapter`
+ * via `@/lib/toast` (thin Sonner wrapper) — no separate notifications
+ * queue or bridge component is needed.
  */
 export function AppShell() {
   useWindowTitle();
@@ -22,7 +25,6 @@ export function AppShell() {
 
   return (
     <TooltipProvider>
-      <NotificationsBridge />
       <Toaster />
       <ShortcutsModal />
       <ConfirmDialog />

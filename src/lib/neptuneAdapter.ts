@@ -18,7 +18,15 @@ export type Unsubscribe = () => void;
 
 /**
  * Single IPC contract for all Zustand stores. Mirrors Tauri commands in `src-tauri/src/lib.rs`.
- * Invoke payloads use **snake_case** keys to match Rust `#[tauri::command]` parameters.
+ *
+ * Invoke payload keys are **camelCase** — Tauri 2.x converts Rust `snake_case`
+ * `#[tauri::command]` parameters to camelCase by default on the wire, so the
+ * frontend MUST send (e.g.) `groupTitle`, `groupLimit`, `channelLimit`.
+ *
+ * The default `adapter` exported from `@/lib/adapter` is wrapped with Zod
+ * input validation (`withInputValidation`), which mirrors the Rust validators
+ * in `src-tauri/src/validation.rs` and rejects bad arguments with a
+ * `NeptuneClientError("invalidRequest", …)` before the IPC round-trip.
  */
 export interface NeptuneAdapter {
   isPlaylistLoaded(): Promise<boolean>;

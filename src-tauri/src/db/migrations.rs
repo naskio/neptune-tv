@@ -10,10 +10,11 @@ pub async fn run(pool: &SqlitePool) -> Result<(), NeptuneError> {
 
         CREATE TABLE IF NOT EXISTS groups (
             title TEXT PRIMARY KEY,
-            logo_url TEXT NOT NULL DEFAULT '/group-default.svg',
+            logo_url TEXT,
             sort_order INTEGER NOT NULL,
             is_bookmarked INTEGER NOT NULL DEFAULT 0,
-            blocked_at INTEGER
+            blocked_at INTEGER,
+            channel_count INTEGER NOT NULL DEFAULT 0
         );
 
         CREATE TABLE IF NOT EXISTS channels (
@@ -21,7 +22,7 @@ pub async fn run(pool: &SqlitePool) -> Result<(), NeptuneError> {
             name TEXT NOT NULL,
             group_title TEXT NOT NULL,
             stream_url TEXT NOT NULL,
-            logo_url TEXT NOT NULL DEFAULT '/channel-default.svg',
+            logo_url TEXT,
             duration INTEGER NOT NULL DEFAULT -1,
             tvg_id TEXT,
             tvg_name TEXT,
@@ -102,6 +103,33 @@ pub async fn run(pool: &SqlitePool) -> Result<(), NeptuneError> {
     )
     .execute(pool)
     .await?;
+
+    // Lightweight schema migration for databases created before `groups.channel_count` existed.
+    let has_channel_count: i64 = sqlx::query_scalar(
+        "SELECT COUNT(1) FROM pragma_table_info('groups') WHERE name = 'channel_count'",
+    )
+    .fetch_one(pool)
+    .await?;
+    if has_channel_count == 0 {
+        sqlx::query(
+            "ALTER TABLE groups ADD COLUMN channel_count INTEGER NOT NULL DEFAULT 0",
+        )
+        .execute(pool)
+        .await?;
+        sqlx::query(
+            r#"
+            UPDATE groups
+            SET channel_count = (
+                SELECT COUNT(1)
+                FROM channels c
+                WHERE c.group_title = groups.title
+                  AND c.blocked_at IS NULL
+            )
+            "#,
+        )
+        .execute(pool)
+        .await?;
+    }
 
     Ok(())
 }

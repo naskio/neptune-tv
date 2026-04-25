@@ -1,9 +1,14 @@
 import i18n from "@/i18n";
-import { VIRTUAL_FAVORITE_CHANNELS, VIRTUAL_RECENTLY_WATCHED } from "@/store/constants";
+import {
+  VIRTUAL_FAVORITE_CHANNELS,
+  VIRTUAL_FAVORITE_GROUPS,
+  VIRTUAL_RECENTLY_WATCHED,
+} from "@/store/constants";
 
 /** Concrete subset of i18n keys that name a virtual group. */
 export type VirtualGroupTitleKey =
   | "virtualGroups.favoriteChannels"
+  | "virtualGroups.favoriteGroups"
   | "virtualGroups.recentlyWatched";
 
 /**
@@ -13,6 +18,9 @@ export type VirtualGroupTitleKey =
 export function virtualGroupTitleKey(title: string): VirtualGroupTitleKey | null {
   if (title === VIRTUAL_FAVORITE_CHANNELS) {
     return "virtualGroups.favoriteChannels";
+  }
+  if (title === VIRTUAL_FAVORITE_GROUPS) {
+    return "virtualGroups.favoriteGroups";
   }
   if (title === VIRTUAL_RECENTLY_WATCHED) {
     return "virtualGroups.recentlyWatched";

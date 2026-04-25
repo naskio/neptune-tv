@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it } from "vitest";
 
 import { BrowserPage } from "@/pages/BrowserPage";
 import { GroupDetailView } from "@/pages/Browser/GroupDetailView";
+import { VIRTUAL_FAVORITE_GROUPS } from "@/store/constants";
 import { useGroupStore } from "@/store/groupStore";
 
 import { bootstrapLoadedPlaylist } from "./bootstrapBrowser";
@@ -17,7 +18,14 @@ describe("BrowserPage", () => {
     await waitFor(() => {
       expect(screen.getByText("Favorite Channels")).toBeInTheDocument();
     });
+    expect(screen.getByText("Favorite Groups")).toBeInTheDocument();
     expect(useGroupStore.getState().items.length).toBeGreaterThan(0);
+  });
+
+  it("renders favorite groups page when the virtual group is active", async () => {
+    await useGroupStore.getState().selectGroup(VIRTUAL_FAVORITE_GROUPS);
+    render(<BrowserPage />);
+    expect(screen.getByRole("heading", { name: "Favorite Groups" })).toBeInTheDocument();
   });
 
   it("group detail view shows the active group title", async () => {

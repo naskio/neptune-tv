@@ -44,26 +44,32 @@ export function BlockedPage() {
           <div className="mx-auto max-w-2xl space-y-6">
             <section>
               <h2 className="mb-2 text-sm font-semibold">{t("blocked.groupsHeading")}</h2>
-              <ul className="divide-y divide-border rounded-lg border">
-                {groups.map((g) => (
-                  <li
-                    key={g.title}
-                    className="flex items-center justify-between gap-2 px-3 py-2 text-sm"
-                  >
-                    <span>{g.title}</span>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        void usePlayerStore.getState().unblockGroup(g.title);
-                      }}
+              {groups.length > 0 ? (
+                <ul className="divide-y divide-border rounded-lg border">
+                  {groups.map((g) => (
+                    <li
+                      key={g.title}
+                      className="flex items-center justify-between gap-2 px-3 py-2 text-sm"
                     >
-                      {t("blocked.unblock")}
-                    </Button>
-                  </li>
-                ))}
-              </ul>
+                      <span>{g.title}</span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          void usePlayerStore.getState().unblockGroup(g.title);
+                        }}
+                      >
+                        {t("blocked.unblock")}
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  {t("blocked.groupsEmptyWithChannels")}
+                </p>
+              )}
               {gNext ? (
                 <Button
                   type="button"
@@ -79,29 +85,35 @@ export function BlockedPage() {
             </section>
             <section>
               <h2 className="mb-2 text-sm font-semibold">{t("blocked.channelsHeading")}</h2>
-              <ul className="divide-y divide-border rounded-lg border">
-                {channels.map((c) => (
-                  <li
-                    key={c.id}
-                    className="flex items-center justify-between gap-2 px-3 py-2 text-sm"
-                  >
-                    <span>
-                      {c.name}
-                      <span className="text-muted-foreground"> — {c.groupTitle}</span>
-                    </span>
-                    <Button
-                      type="button"
-                      size="sm"
-                      variant="outline"
-                      onClick={() => {
-                        void usePlayerStore.getState().unblockChannel(c.id);
-                      }}
+              {channels.length > 0 ? (
+                <ul className="divide-y divide-border rounded-lg border">
+                  {channels.map((c) => (
+                    <li
+                      key={c.id}
+                      className="flex items-center justify-between gap-2 px-3 py-2 text-sm"
                     >
-                      {t("blocked.unblock")}
-                    </Button>
-                  </li>
-                ))}
-              </ul>
+                      <span>
+                        {c.name}
+                        <span className="text-muted-foreground"> — {c.groupTitle}</span>
+                      </span>
+                      <Button
+                        type="button"
+                        size="sm"
+                        variant="outline"
+                        onClick={() => {
+                          void usePlayerStore.getState().unblockChannel(c.id);
+                        }}
+                      >
+                        {t("blocked.unblock")}
+                      </Button>
+                    </li>
+                  ))}
+                </ul>
+              ) : (
+                <p className="text-sm text-muted-foreground">
+                  {t("blocked.channelsEmptyWithGroups")}
+                </p>
+              )}
               {cNext ? (
                 <Button
                   type="button"

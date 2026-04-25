@@ -6,7 +6,7 @@ import {
   DropdownMenu,
   DropdownMenuContent,
   DropdownMenuItem,
-  DropdownMenuLabel,
+  // DropdownMenuLabel,
   DropdownMenuRadioGroup,
   DropdownMenuRadioItem,
   DropdownMenuSeparator,
@@ -15,7 +15,7 @@ import {
   DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import { adapter } from "@/lib/adapter";
+// import { adapter } from "@/lib/adapter";
 import { usePlaylistStore } from "@/store/playlistStore";
 import { useSettingsStore, type Locale, type ThemeMode } from "@/store/settingsStore";
 import { useUiStore } from "@/store/uiStore";
@@ -38,26 +38,26 @@ export function HeaderMenu() {
         </Button>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuLabel>{t("header.playlistMenu.sectionLabel")}</DropdownMenuLabel>
-        <DropdownMenuItem
-          onClick={() => {
-            useUiStore.getState().openConfirm({
-              titleKey: "confirm.openDifferent.title",
-              descriptionKey: "confirm.openDifferent.description",
-              confirmLabelKey: "confirm.openDifferent.confirmLabel",
-              destructive: true,
-              onConfirm: async () => {
-                await usePlaylistStore.getState().closePlaylist();
-                const path = await adapter.pickLocalPlaylistFile();
-                if (path) {
-                  void usePlaylistStore.getState().importLocal(path);
-                }
-              },
-            });
-          }}
-        >
-          {t("header.playlistMenu.openDifferent")}
-        </DropdownMenuItem>
+        {/*<DropdownMenuLabel>{t("header.playlistMenu.sectionLabel")}</DropdownMenuLabel>*/}
+        {/*<DropdownMenuItem*/}
+        {/*  onClick={() => {*/}
+        {/*    useUiStore.getState().openConfirm({*/}
+        {/*      titleKey: "confirm.openDifferent.title",*/}
+        {/*      descriptionKey: "confirm.openDifferent.description",*/}
+        {/*      confirmLabelKey: "confirm.openDifferent.confirmLabel",*/}
+        {/*      destructive: true,*/}
+        {/*      onConfirm: async () => {*/}
+        {/*        await usePlaylistStore.getState().closePlaylist();*/}
+        {/*        const path = await adapter.pickLocalPlaylistFile();*/}
+        {/*        if (path) {*/}
+        {/*          void usePlaylistStore.getState().importLocal(path);*/}
+        {/*        }*/}
+        {/*      },*/}
+        {/*    });*/}
+        {/*  }}*/}
+        {/*>*/}
+        {/*  {t("header.playlistMenu.openDifferent")}*/}
+        {/*</DropdownMenuItem>*/}
         <DropdownMenuItem
           onClick={() => {
             useUiStore.getState().openConfirm({

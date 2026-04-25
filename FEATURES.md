@@ -25,7 +25,7 @@ video.**
 | `title`         | Primary key (unique). Source: `group-title` attribute.                                                                              |
 | `logo_url`      | Defaults to `/group-default.svg`. Stored for future UI customisation.                                                               |
 | `sort_order`    | Insertion order in the M3U8 file — used for Default sort.                                                                           |
-| `is_bookmarked` | Boolean; bookmarked groups float to the top of all listings.                                                                        |
+| `is_bookmarked` | Boolean marker for favorite groups (used by Favorite Groups and search ranking).                                                    |
 | `blocked_at`    | Timestamp of when the group was blocked. `NULL` if not blocked. Group and all its channels are excluded from all listings when set. |
 
 Channels with no `group-title` are placed in an auto-created `"Uncategorized"` group.
@@ -84,7 +84,7 @@ Full-screen landing shown when the DB is empty.
 
 - Pinned virtual groups: **Favorite Channels** · **Recently Watched**
 - Divider
-- Real groups: bookmarked first, then active sort order, with channel count
+- Real groups: active sort order, with channel count
 - Blocked groups and their channels are hidden everywhere
 
 **Content Area** (right):
@@ -96,14 +96,16 @@ _Home View_ — shown when no group is selected:
 | Favorite Channels | Horizontal scrollable card row (up to 20 · "See all") |
 | Recently Watched  | Horizontal scrollable card row (up to 20 · "See all") |
 | Favorite Groups   | Card grid of bookmarked groups                        |
-| All Groups        | Card grid — bookmarked first, then sort order         |
+| All Groups        | Card grid — active sort order                         |
 
 _Group Detail View_ — shown when a group is selected:
 
 - Breadcrumb: `Home › Group Name` + back arrow.
+- Group actions: favorite toggle + block action menu.
 - Scoped filter input — searches channel names within this group only.
+- Favorite Channels in this group — horizontal card row (hidden if empty).
 - Recently Watched in this group — horizontal card row (hidden if empty).
-- Channel card grid — bookmarked first, then active sort order.
+- Channel card grid — active sort order.
 
 **All cards** (channels and groups) show: logo · name · relevant metadata (group name for channels; channel count for
 groups). Broken logos fall back to the default asset.
@@ -126,8 +128,8 @@ Two modes toggled from the header, applied everywhere:
 | **Default** | `sort_order ASC`                | `id ASC` (insertion order)      |
 | **Name**    | Alphabetical (case-insensitive) | Alphabetical (case-insensitive) |
 
-Bookmarked items always appear first within each sort mode (two tiers: bookmarked → non-bookmarked, sort applies within
-each tier).
+Bookmarked-first ordering is applied only in search results. Regular group/channel listings follow the active sort mode
+without bookmark tiering.
 
 Sort preference persists across sessions.
 
@@ -139,10 +141,10 @@ section.
 - **Global** — header input searches groups and channels across the entire playlist simultaneously. Results appear
   instantly as the user types (debounced 150 ms) in two labelled sections, rendered below the search input:
 
-| Section      | Content                | Ranking                 |
-| ------------ | ---------------------- | ----------------------- |
-| **Groups**   | Matching group titles  | FTS5 relevance (`bm25`) |
-| **Channels** | Matching channel names | FTS5 relevance (`bm25`) |
+| Section      | Content                | Ranking                                        |
+| ------------ | ---------------------- | ---------------------------------------------- |
+| **Groups**   | Matching group titles  | Bookmarked first, then FTS5 relevance (`bm25`) |
+| **Channels** | Matching channel names | Bookmarked first, then FTS5 relevance (`bm25`) |
 
 - Sections are independent — each shows its own empty state if there are no matches in that category.
 - Both sections are hidden when the query is empty; the previous view is restored.
@@ -177,7 +179,7 @@ section.
 
 | Action   | Trigger                                                                             |
 | -------- | ----------------------------------------------------------------------------------- |
-| Bookmark | Star icon on group card — group floats to top.                                      |
+| Bookmark | Star icon on group card or Group Detail header — marks as favorite group.           |
 | Block    | Context menu — group + all its channels hidden everywhere; visible on Blocked page. |
 
 ### Blocked

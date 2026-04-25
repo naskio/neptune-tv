@@ -1,3 +1,4 @@
+export * from "./ipc";
 export * from "./pagination";
 export * from "./playlist";
 export * from "./search";

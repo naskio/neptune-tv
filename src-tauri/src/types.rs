@@ -15,17 +15,18 @@ pub struct PlaylistMeta {
 #[serde(rename_all = "camelCase")]
 pub struct Group {
     pub title: String,
-    pub logo_url: String,
+    pub logo_url: Option<String>,
     pub sort_order: i64,
     pub is_bookmarked: i64,
     pub blocked_at: Option<i64>,
+    pub channel_count: i64,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct GroupDetail {
     pub title: String,
-    pub logo_url: String,
+    pub logo_url: Option<String>,
     pub sort_order: i64,
     pub is_bookmarked: i64,
     pub blocked_at: Option<i64>,
@@ -39,7 +40,7 @@ pub struct Channel {
     pub name: String,
     pub group_title: String,
     pub stream_url: String,
-    pub logo_url: String,
+    pub logo_url: Option<String>,
     pub duration: i64,
     pub tvg_id: Option<String>,
     pub tvg_name: Option<String>,
@@ -82,7 +83,7 @@ pub struct ChannelWithRank {
     pub name: String,
     pub group_title: String,
     pub stream_url: String,
-    pub logo_url: String,
+    pub logo_url: Option<String>,
     pub duration: i64,
     pub tvg_id: Option<String>,
     pub tvg_name: Option<String>,

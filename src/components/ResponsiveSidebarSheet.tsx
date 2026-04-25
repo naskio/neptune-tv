@@ -1,12 +1,17 @@
-import { Sheet, SheetContent } from "@/components/ui/sheet";
-import { useIsMobile } from "@/hooks/useIsMobile";
+import { useTranslation } from "react-i18next";
+import { XIcon } from "lucide-react";
+
 import { Sidebar } from "@/components/Sidebar";
+import { Button } from "@/components/ui/button";
+import { Sheet, SheetClose, SheetContent } from "@/components/ui/sheet";
+import { useIsMobile } from "@/hooks/useIsMobile";
 import { useUiStore } from "@/store/uiStore";
 
 /**
  * Tablet: left drawer. Mobile: bottom sheet. Desktop (`lg+`): not rendered — sidebar is in-layout.
  */
 export function ResponsiveSidebarSheet() {
+  const { t } = useTranslation();
   const open = useUiStore((s) => s.sidebarOpen);
   const setOpen = useUiStore((s) => s.setSidebarOpen);
   const { isMobile, isDesktop } = useIsMobile();
@@ -19,9 +24,26 @@ export function ResponsiveSidebarSheet() {
 
   return (
     <Sheet open={open} onOpenChange={setOpen}>
-      <SheetContent side={side} className="flex w-full max-h-[85vh] flex-col gap-0 p-0 sm:max-w-sm">
+      <SheetContent
+        side={side}
+        showCloseButton={false}
+        className="flex w-full flex-col gap-0 p-0 sm:max-w-sm data-[side=bottom]:h-[100dvh] data-[side=bottom]:max-h-[100dvh]"
+      >
+        <div className="flex shrink-0 items-center justify-between border-b border-border bg-sidebar px-2 py-2">
+          <h2 className="text-sm font-semibold tracking-tight">{t("sidebar.heading")}</h2>
+          <SheetClose asChild>
+            <Button
+              variant="ghost"
+              size="icon-sm"
+              className="shrink-0"
+              aria-label={t("sidebar.closeSheet")}
+            >
+              <XIcon />
+            </Button>
+          </SheetClose>
+        </div>
         <div className="min-h-0 min-w-0 flex-1 overflow-hidden">
-          <Sidebar />
+          <Sidebar showHeading={false} />
         </div>
       </SheetContent>
     </Sheet>

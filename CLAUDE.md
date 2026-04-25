@@ -42,11 +42,10 @@ src/
     Card/               # ChannelCard · GroupCard · CardImage · ChannelContextMenu · GroupContextMenu
     List/               # VirtualGrid · VirtualHorizontalRow · AZIndexBar
     Modal/              # ShortcutsModal · RemoteUrlDialog · ConfirmDialog
-    Notifications/     # NotificationsBridge (playlist → sonner)
     EmptyState.tsx · SectionHeader.tsx · Header.tsx · Sidebar.tsx
   hooks/
-    useWindowTitle · useKeyboardShortcuts · useIsMobile · useNotifications · useImportLifecycle
-    useToastBridge · useSearchInputRef · useImageFallback · useVirtualGrid · useFocusedItem
+    useWindowTitle · useKeyboardShortcuts · useIsMobile · useImportLifecycle
+    useSearchInputRef · useImageFallback · useVirtualGrid · useFocusedItem
   pages/
     HeroPage.tsx · BrowserPage.tsx · BlockedPage.tsx
     Browser/HomeView.tsx · Browser/GroupDetailView.tsx
@@ -54,9 +53,13 @@ src/
   lib/
     types.ts            # TS interfaces for all Tauri IPC response types + NeptuneClientError
     neptuneAdapter.ts   # NeptuneAdapter interface + Unsubscribe
-    schemas/            # Zod schemas (one file per domain)
-    adapter.ts          # exports `adapter` — tauri vs mock at runtime
-    tauriAdapter.ts     # real: invoke() + event.listen (snake_case invoke payloads)
+    schemas/            # Zod schemas (one file per domain) — `ipc.ts` mirrors `src-tauri/src/validation.rs`
+    adapter.ts          # exports `adapter` (tauri vs mock + `withInputValidation` + `withErrorReporting`)
+    tauriAdapter.ts     # real: invoke() + event.listen (camelCase invoke payloads — Tauri 2.x default)
+    validatingAdapter.ts # `withInputValidation` — Zod-gates every IPC call before crossing the boundary
+    errorReportingAdapter.ts # `withErrorReporting` — toasts + `console.error`s every IPC failure
+    ipcErrorReporter.ts # `reportIpcError(command, e)` — `console.error` + Sonner toast under stable id
+    toast.ts            # thin i18n-aware wrapper over `sonner` (`notifyInfo/Success/ErrorKey/Progress`, `dismissToast`)
     mockAdapter.ts      # in-memory backend for `yarn dev`, full commands + import events
     mockFixtures.ts     # seedMockData() — ~50 groups / ~5k channels
     cursorCodec.ts      # base64url JSON cursors (parity with Rust)
@@ -72,7 +75,8 @@ src/
 src-tauri/src/
   db/                   # all SQLite logic
   parser/               # M3U8 state-machine parser
-  lib.rs                # Tauri setup + command registration (thin delegators only)
+  validation.rs         # input guards used by every `#[tauri::command]` (mirror of `src/lib/schemas/ipc.ts`)
+  lib.rs                # Tauri setup + command registration (thin delegators only — call validation first)
   main.rs               # binary entry point — no logic here
 public/
   group-default.svg
@@ -124,12 +128,32 @@ import { adapter } from "@/lib/adapter";
 // `adapter` is a `NeptuneAdapter` (tauri or mock, see `adapter.ts`)
 ```
 
+**IPC payloads are camelCase.** Tauri 2.x converts Rust `snake_case` `#[tauri::command]` parameters to camelCase on
+the wire by default, so `tauriAdapter.ts` must send `{ groupTitle, groupLimit, channelLimit, … }` — never
+`group_title` / `group_limit`. Adapter contract tests in `src/lib/__tests__/adapter.contract.test.ts` enforce this.
+
+**Two-sided validation.** Every `#[tauri::command]` calls a guard from `src-tauri/src/validation.rs` (non-empty
+title, positive id, `[1, 500]` limit, http(s)-only URL, …) before touching SQL — bad input becomes
+`NeptuneError::InvalidRequest`. The same rules live in `src/lib/schemas/ipc.ts` (Zod) and are applied at the
+adapter boundary by `withInputValidation` in `validatingAdapter.ts`, which converts failures into
+`NeptuneClientError("invalidRequest", "<command>.<field>: <i18n key>")`. Keep the two sides in sync — Rust is the
+source of truth, the Zod schemas catch errors earlier and feed structured messages to the UI.
+
+**Centralised IPC error reporting.** The outermost adapter layer is `withErrorReporting` (see
+`errorReportingAdapter.ts`). Every adapter rejection — whether a Zod input failure, a Tauri serde rejection
+(e.g. _"missing required key groupTitle"_), or a backend `NeptuneError` — flows through `reportIpcError` in
+`ipcErrorReporter.ts`, which always logs to `console.error("[ipc] <command> failed: …")` and fires a Sonner
+toast under the stable id `ipc-error:<command>` via `notifyErrorKey("toast.ipcFailed", ...)` (so recurring
+failures for the same command update the existing toast instead of stacking). The error is then re-thrown,
+so per-store `try { await adapter.X(...) } catch (e) { setError(...) }` patterns continue to drive in-place
+UI feedback.
+
 Store scope:
 
 | Store           | Responsibility                                                                                                                                                                            |
 | --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | `settingsStore` | App-wide preferences — **`sortMode` (Default / Name)**, **`themeMode` (light / dark / system)**, and **`locale` (en / fr / ar / system)**, persisted to `localStorage`                    |
-| `playlistStore` | Import flow, progress, toasts/notification queue, cancel, wipe, error state, shortcuts modal flag                                                                                         |
+| `playlistStore` | Import flow, progress, cancel, wipe, error state, shortcuts modal flag (toasts are fired directly via `@/lib/toast`, not stored)                                                          |
 | `groupStore`    | Group list, active selection, bookmark/block (groups)                                                                                                                                     |
 | `channelStore`  | Channel list in selected group, pagination cursor, bookmark/block (channels)                                                                                                              |
 | `searchStore`   | Global + scoped search query, debounced (150ms) results, search-focus token for Phase 4                                                                                                   |
@@ -174,7 +198,7 @@ M3U8 file / URL
   SELECT g.* FROM groups g
   JOIN groups_fts ON groups_fts.rowid = g.rowid
   WHERE groups_fts MATCH ? AND g.blocked_at IS NULL
-  ORDER BY bm25(groups_fts) LIMIT 5;
+  ORDER BY g.is_bookmarked DESC, bm25(groups_fts), LOWER(g.title), g.title LIMIT 5;
 
   -- Channels section
   SELECT c.* FROM channels c
@@ -183,7 +207,7 @@ M3U8 file / URL
   WHERE channels_fts.name MATCH ?
     AND c.blocked_at IS NULL
     AND g.blocked_at IS NULL
-  ORDER BY bm25(channels_fts) LIMIT 20;
+  ORDER BY COALESCE(c.bookmarked_at, 0) DESC, bm25(channels_fts), LOWER(c.name), c.id LIMIT 20;
   ```
 
   Scoped search (Group Detail View) reuses the channels query with an additional `AND c.group_title = ?`,
@@ -196,18 +220,18 @@ M3U8 file / URL
 
   | Index                                        | Columns                                               | Serves                                                                                                                                                     |
   | -------------------------------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
-  | `idx_channels_group_blocked_bookmarked_id`   | `(group_title, blocked_at, bookmarked_at DESC, id)`   | Channel list in group — default sort, bookmarked-first, cursor pagination, blocked exclusion; FTS scoped post-filter                                       |
-  | `idx_channels_group_blocked_bookmarked_name` | `(group_title, blocked_at, bookmarked_at DESC, name)` | Channel list in group — name sort, bookmarked-first, scoped search post-filter                                                                             |
+  | `idx_channels_group_blocked_bookmarked_id`   | `(group_title, blocked_at, bookmarked_at DESC, id)`   | Channel list in group — default sort (`id ASC`) + blocked exclusion; extra bookmarked column still serves scoped search bookmark tier                      |
+  | `idx_channels_group_blocked_bookmarked_name` | `(group_title, blocked_at, bookmarked_at DESC, name)` | Channel list in group — name sort (`LOWER(name), id`) + blocked exclusion; scoped search post-filter with bookmarked-first ranking                         |
   | `idx_channels_blocked_bookmarked`            | `(blocked_at, bookmarked_at)`                         | Favourite Channels virtual group (`WHERE bookmarked_at IS NOT NULL AND blocked_at IS NULL`, plus parent group not blocked)                                 |
   | `idx_channels_blocked_watched`               | `(blocked_at, watched_at)`                            | Recently Watched virtual group (`WHERE watched_at IS NOT NULL AND blocked_at IS NULL`, plus parent group not blocked, `ORDER BY watched_at DESC LIMIT 50`) |
   | `idx_channels_tvg_chno`                      | `(tvg_chno)`                                          | Channel-number lookup                                                                                                                                      |
 
   `groups`:
 
-  | Index                                 | Columns                                        | Serves                                                                    |
-  | ------------------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------- |
-  | `idx_groups_blocked_bookmarked_sort`  | `(blocked_at, is_bookmarked DESC, sort_order)` | Group list — default sort, bookmarked-first, blocked exclusion            |
-  | `idx_groups_blocked_bookmarked_title` | `(blocked_at, is_bookmarked DESC, title)`      | Group list — name sort, bookmarked-first; global group search post-filter |
+  | Index                                 | Columns                                        | Serves                                                                                                                      |
+  | ------------------------------------- | ---------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------- |
+  | `idx_groups_blocked_bookmarked_sort`  | `(blocked_at, is_bookmarked DESC, sort_order)` | Group list — default sort (`sort_order`, then `title`) with blocked exclusion; bookmark column still used by search ranking |
+  | `idx_groups_blocked_bookmarked_title` | `(blocked_at, is_bookmarked DESC, title)`      | Group list — name sort with blocked exclusion; global group search post-filter + bookmarked-first ranking                   |
 
 ### Parser
 
@@ -247,14 +271,18 @@ mapping is in `FEATURES.md` (Data Model → Channels).
   (`'en' | 'fr' | 'ar' | 'system'`) is persisted; `<LocaleSync />` syncs it to `i18next.changeLanguage()` and updates
   `<html lang dir>`. **Components** call `useTranslation()` and `t("namespace.key")`; **non-React code** (`useWindowTitle`,
   stores) imports `i18n` from `@/i18n` and calls `i18n.t(...)`. Numbers/dates use `formatNumber` / `formatDateTime` from
-  `@/i18n`. Zod schemas store i18n **keys** as `message`; consumers translate at display time. Toast notifications carry
-  `messageKey` + `messageVars` (resolved by `useToastBridge`) so language switches stay live.
+  `@/i18n`. Zod schemas store i18n **keys** as `message`; consumers translate at display time. Toast helpers in
+  `@/lib/toast` resolve i18n keys at toast-creation time (toasts are short-lived, so live language switching mid-toast
+  is not worth the complexity).
 - **Responsive shell** — `lg+`: fixed-width sidebar + main. `<lg`: groups list in a shadcn `Sheet` (left on tablet,
   bottom on mobile) toggled from the header hamburger; **A–Z index bar is hidden on mobile** (`useIsMobile`).
 - **Store bootstrap** — `initStores()` in `src/store/index.ts` should run before React render (`main.tsx`); tests may call
   it after `__reset*StoreForTests()` to get a clean IPC surface.
 - **Routing** — no `react-router`: `AppShell` picks `HeroPage` / `BrowserPage` / `BlockedPage` from `hasPlaylist` + `uiStore.blockedPageOpen`.
-- **Toasts** — `playlistStore.notifications` is mirrored to Sonner via `useToastBridge` / `NotificationsBridge`.
+- **Toasts** — call `notifyInfo` / `notifySuccess` / `notifyErrorKey` / `notifyErrorMessage` / `notifyProgress` /
+  `dismissToast` from `@/lib/toast` directly. Sonner owns the queue, dismissal, stacking, ARIA, and theming
+  (`<Toaster />` is mounted once in `AppShell`). Stable ids (e.g. `import-progress`, `ipc-error:<command>`) update
+  an existing toast in place. **Do not import `sonner` directly** outside `@/lib/toast` and `@/components/ui/sonner.tsx`.
 - **Zod** — all user inputs validated before any store action; schemas in `src/lib/schemas/`.
 - **shadcn/ui first** — always `yarn shadcn add <component>` before building anything custom; `src/components/ui/` is
   shadcn-only output.

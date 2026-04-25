@@ -3,7 +3,7 @@ pub struct ParsedChannel {
     pub name: String,
     pub group_title: String,
     pub stream_url: String,
-    pub logo_url: String,
+    pub logo_url: Option<String>,
     pub duration: i64,
     pub tvg_id: Option<String>,
     pub tvg_name: Option<String>,

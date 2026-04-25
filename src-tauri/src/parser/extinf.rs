@@ -4,9 +4,8 @@ use serde_json::Value;
 
 use super::types::{ParsedChannel, ParsedExtInf};
 
-const UNCATEGORIZED: &str = "Uncategorized";
-const GROUP_DEFAULT_LOGO: &str = "/group-default.svg";
-const CHANNEL_DEFAULT_LOGO: &str = "/channel-default.svg";
+/// Default group when `group-title` is missing or empty (must match DB / FEATURES).
+pub(crate) const UNCATEGORIZED: &str = "Uncategorized";
 
 pub fn parse_extinf_line(line: &str) -> Option<ParsedExtInf> {
     if !line.starts_with("#EXTINF:") {
@@ -30,8 +29,7 @@ pub fn parse_extinf_line(line: &str) -> Option<ParsedExtInf> {
     let logo_url = attributes
         .get("tvg-logo")
         .and_then(|v| non_empty(v))
-        .map(str::to_owned)
-        .unwrap_or_else(|| CHANNEL_DEFAULT_LOGO.to_owned());
+        .map(str::to_owned);
     let group_title = attributes
         .get("group-title")
         .and_then(|v| non_empty(v))
@@ -120,10 +118,6 @@ pub fn parse_extinf_line(line: &str) -> Option<ParsedExtInf> {
     })
 }
 
-pub fn group_default_logo() -> &'static str {
-    GROUP_DEFAULT_LOGO
-}
-
 fn parse_attributes(input: &str) -> BTreeMap<String, String> {
     let mut out = BTreeMap::new();
     let bytes = input.as_bytes();
@@ -175,7 +169,7 @@ fn parse_attributes(input: &str) -> BTreeMap<String, String> {
         };
 
         if key_end > key_start {
-            let key = String::from_utf8_lossy(&bytes[key_start..key_end]).to_string();
+            let key = String::from_utf8_lossy(&bytes[key_start..key_end]).to_ascii_lowercase();
             out.insert(key, value);
         }
     }
@@ -185,6 +179,10 @@ fn parse_attributes(input: &str) -> BTreeMap<String, String> {
 
 fn non_empty(value: &str) -> Option<&str> {
     let trimmed = value.trim();
+    let trimmed = trimmed
+        .strip_prefix('\'')
+        .and_then(|s| s.strip_suffix('\''))
+        .unwrap_or(trimmed);
     if trimmed.is_empty() {
         None
     } else {
@@ -197,6 +195,21 @@ mod tests {
     use super::parse_extinf_line;
 
     #[test]
+    fn parse_extinf_normalizes_attribute_keys_to_ascii_lowercase() {
+        let line = r#"#EXTINF:-1 GROUP-TITLE="Sports" TVG-ID="x",Ch"#;
+        let parsed = parse_extinf_line(line).expect("line should parse");
+        assert_eq!(parsed.channel.group_title, "Sports");
+        assert_eq!(parsed.channel.tvg_id.as_deref(), Some("x"));
+    }
+
+    #[test]
+    fn parse_extinf_strips_single_quotes_around_unquoted_attribute_values() {
+        let line = r#"#EXTINF:-1 group-title='Kids',Family"#;
+        let parsed = parse_extinf_line(line).expect("line should parse");
+        assert_eq!(parsed.channel.group_title, "Kids");
+    }
+
+    #[test]
     fn parse_extinf_maps_known_fields_and_extras() {
         let line = r#"#EXTINF:-1 tvg-id="abc" tvg-name="BBC One" tvg-logo="https://logo.png" tvg-chno="101" tvg-language="en" tvg-country="GB" tvg-shift="1.5" tvg-rec="rec" tvg-url="epg" group-title="News" tvg-foo="bar",BBC One HD"#;
         let parsed = parse_extinf_line(line).expect("line should parse");
@@ -205,7 +218,7 @@ mod tests {
         assert_eq!(channel.name, "BBC One HD");
         assert_eq!(channel.duration, -1);
         assert_eq!(channel.group_title, "News");
-        assert_eq!(channel.logo_url, "https://logo.png");
+        assert_eq!(channel.logo_url.as_deref(), Some("https://logo.png"));
         assert_eq!(channel.tvg_id.as_deref(), Some("abc"));
         assert_eq!(channel.tvg_name.as_deref(), Some("BBC One"));
         assert_eq!(channel.tvg_chno, Some(101));
@@ -226,7 +239,7 @@ mod tests {
         assert_eq!(channel.name, "Sample Channel");
         assert_eq!(channel.duration, 120);
         assert_eq!(channel.group_title, "Uncategorized");
-        assert_eq!(channel.logo_url, "/channel-default.svg");
+        assert!(channel.logo_url.is_none());
         assert!(channel.tvg_id.is_none());
         assert!(channel.tvg_extras.is_none());
     }

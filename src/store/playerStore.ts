@@ -9,7 +9,12 @@ import {
   type Group,
 } from "@/lib/types";
 
-import { PAGE_SIZE } from "./constants";
+import {
+  PAGE_SIZE,
+  VIRTUAL_FAVORITE_CHANNELS,
+  VIRTUAL_FAVORITE_GROUPS,
+  VIRTUAL_RECENTLY_WATCHED,
+} from "./constants";
 import { usePlaylistStore } from "./playlistStore";
 import { useSettingsStore } from "./settingsStore";
 
@@ -237,6 +242,16 @@ export const usePlayerStore = create<PlayerState & PlayerActions>()((set, get) =
       await adapter.playChannel(id);
       set({ lastOpenedId: id });
       await get().refreshRecentlyWatched();
+      const { useGroupStore } = await import("./groupStore");
+      const activeGroupTitle = useGroupStore.getState().activeGroupTitle;
+      if (
+        activeGroupTitle &&
+        activeGroupTitle !== VIRTUAL_FAVORITE_CHANNELS &&
+        activeGroupTitle !== VIRTUAL_FAVORITE_GROUPS &&
+        activeGroupTitle !== VIRTUAL_RECENTLY_WATCHED
+      ) {
+        await get().loadRecentInGroup(activeGroupTitle);
+      }
     } catch (e) {
       set({ error: NeptuneClientError.fromUnknown(e) });
     }
@@ -245,8 +260,21 @@ export const usePlayerStore = create<PlayerState & PlayerActions>()((set, get) =
   unblockGroup: async (title) => {
     try {
       await adapter.setGroupBlocked(title, false);
-      await get().refreshBlocked();
+      await Promise.all([
+        get().refreshBlocked(),
+        get().refreshFavorites(),
+        get().refreshRecentlyWatched(),
+      ]);
       const { useGroupStore } = await import("./groupStore");
+      const activeGroupTitle = useGroupStore.getState().activeGroupTitle;
+      if (
+        activeGroupTitle &&
+        activeGroupTitle !== VIRTUAL_FAVORITE_CHANNELS &&
+        activeGroupTitle !== VIRTUAL_FAVORITE_GROUPS &&
+        activeGroupTitle !== VIRTUAL_RECENTLY_WATCHED
+      ) {
+        await get().loadRecentInGroup(activeGroupTitle);
+      }
       void useGroupStore.getState().loadFirstPage();
     } catch (e) {
       set({ error: NeptuneClientError.fromUnknown(e) });
@@ -256,11 +284,25 @@ export const usePlayerStore = create<PlayerState & PlayerActions>()((set, get) =
   unblockChannel: async (id) => {
     try {
       await adapter.setChannelBlocked(id, false);
-      await get().refreshBlocked();
-      void (async () => {
-        const { useChannelStore } = await import("./channelStore");
-        void useChannelStore.getState().loadFirstPage();
-      })();
+      await Promise.all([
+        get().refreshBlocked(),
+        get().refreshFavorites(),
+        get().refreshRecentlyWatched(),
+      ]);
+      const { useGroupStore } = await import("./groupStore");
+      const activeGroupTitle = useGroupStore.getState().activeGroupTitle;
+      if (
+        activeGroupTitle &&
+        activeGroupTitle !== VIRTUAL_FAVORITE_CHANNELS &&
+        activeGroupTitle !== VIRTUAL_FAVORITE_GROUPS &&
+        activeGroupTitle !== VIRTUAL_RECENTLY_WATCHED
+      ) {
+        await get().loadRecentInGroup(activeGroupTitle);
+      }
+      // Keep group cards/channel counts in sync after restoring a channel from Blocked.
+      await useGroupStore.getState().loadFirstPage();
+      const { useChannelStore } = await import("./channelStore");
+      void useChannelStore.getState().loadFirstPage();
     } catch (e) {
       set({ error: NeptuneClientError.fromUnknown(e) });
     }

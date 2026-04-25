@@ -1,6 +1,10 @@
 import { create } from "zustand";
 
-import { VIRTUAL_FAVORITE_CHANNELS, VIRTUAL_RECENTLY_WATCHED } from "./constants";
+import {
+  VIRTUAL_FAVORITE_CHANNELS,
+  VIRTUAL_FAVORITE_GROUPS,
+  VIRTUAL_RECENTLY_WATCHED,
+} from "./constants";
 import { useChannelStore } from "./channelStore";
 import { useGroupStore } from "./groupStore";
 import { usePlayerStore } from "./playerStore";
@@ -34,6 +38,7 @@ function buildSidebarKeys(): string[] {
   return [
     VIRTUAL_FAVORITE_CHANNELS,
     VIRTUAL_RECENTLY_WATCHED,
+    VIRTUAL_FAVORITE_GROUPS,
     ...useGroupStore.getState().items.map((g) => g.title),
   ];
 }
@@ -57,6 +62,12 @@ function buildMainList(): MainEntry[] {
     }
     if (active === VIRTUAL_RECENTLY_WATCHED) {
       return player.recentlyWatched.map((c) => ({ kind: "channel" as const, key: c.id }));
+    }
+    if (active === VIRTUAL_FAVORITE_GROUPS) {
+      return useGroupStore
+        .getState()
+        .items.filter((g) => g.isBookmarked === 1)
+        .map((g) => ({ kind: "group" as const, key: g.title }));
     }
     return chStore.items.map((c) => ({ kind: "channel" as const, key: c.id }));
   }

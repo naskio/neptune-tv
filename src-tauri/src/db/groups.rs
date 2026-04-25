@@ -36,7 +36,7 @@ pub async fn list_blocked_groups(
     let rows = if let Some(decoded) = decoded {
         sqlx::query_as::<_, Group>(
             r#"
-            SELECT title, logo_url, sort_order, is_bookmarked, blocked_at
+            SELECT title, logo_url, sort_order, is_bookmarked, blocked_at, channel_count
             FROM groups
             WHERE blocked_at IS NOT NULL
               AND (LOWER(title), title) > (?, ?)
@@ -52,7 +52,7 @@ pub async fn list_blocked_groups(
     } else {
         sqlx::query_as::<_, Group>(
             r#"
-            SELECT title, logo_url, sort_order, is_bookmarked, blocked_at
+            SELECT title, logo_url, sort_order, is_bookmarked, blocked_at, channel_count
             FROM groups
             WHERE blocked_at IS NOT NULL
             ORDER BY LOWER(title), title
@@ -90,16 +90,14 @@ async fn list_groups_internal(
             if let Some(decoded) = decoded {
                 sqlx::query_as::<_, Group>(&format!(
                     r#"
-                    SELECT g.title, g.logo_url, g.sort_order, g.is_bookmarked, g.blocked_at
+                    SELECT g.title, g.logo_url, g.sort_order, g.is_bookmarked, g.blocked_at, g.channel_count
                     FROM groups g
                     WHERE {where_clause}
-                      AND (g.is_bookmarked < ? OR (g.is_bookmarked = ? AND (g.sort_order > ? OR (g.sort_order = ? AND g.title > ?))))
-                    ORDER BY g.is_bookmarked DESC, g.sort_order ASC, g.title ASC
+                      AND (g.sort_order > ? OR (g.sort_order = ? AND g.title > ?))
+                    ORDER BY g.sort_order ASC, g.title ASC
                     LIMIT ?
                     "#
                 ))
-                .bind(decoded.is_bookmarked)
-                .bind(decoded.is_bookmarked)
                 .bind(decoded.sort_order)
                 .bind(decoded.sort_order)
                 .bind(decoded.title)
@@ -109,10 +107,10 @@ async fn list_groups_internal(
             } else {
                 sqlx::query_as::<_, Group>(&format!(
                     r#"
-                    SELECT g.title, g.logo_url, g.sort_order, g.is_bookmarked, g.blocked_at
+                    SELECT g.title, g.logo_url, g.sort_order, g.is_bookmarked, g.blocked_at, g.channel_count
                     FROM groups g
                     WHERE {where_clause}
-                    ORDER BY g.is_bookmarked DESC, g.sort_order ASC, g.title ASC
+                    ORDER BY g.sort_order ASC, g.title ASC
                     LIMIT ?
                     "#
                 ))
@@ -129,16 +127,14 @@ async fn list_groups_internal(
             if let Some(decoded) = decoded {
                 sqlx::query_as::<_, Group>(&format!(
                     r#"
-                    SELECT g.title, g.logo_url, g.sort_order, g.is_bookmarked, g.blocked_at
+                    SELECT g.title, g.logo_url, g.sort_order, g.is_bookmarked, g.blocked_at, g.channel_count
                     FROM groups g
                     WHERE {where_clause}
-                      AND (g.is_bookmarked < ? OR (g.is_bookmarked = ? AND (LOWER(g.title) > ? OR (LOWER(g.title) = ? AND g.title > ?))))
-                    ORDER BY g.is_bookmarked DESC, LOWER(g.title) ASC, g.title ASC
+                      AND (LOWER(g.title) > ? OR (LOWER(g.title) = ? AND g.title > ?))
+                    ORDER BY LOWER(g.title) ASC, g.title ASC
                     LIMIT ?
                     "#
                 ))
-                .bind(decoded.is_bookmarked)
-                .bind(decoded.is_bookmarked)
                 .bind(decoded.title_lower.clone())
                 .bind(decoded.title_lower)
                 .bind(decoded.title)
@@ -148,10 +144,10 @@ async fn list_groups_internal(
             } else {
                 sqlx::query_as::<_, Group>(&format!(
                     r#"
-                    SELECT g.title, g.logo_url, g.sort_order, g.is_bookmarked, g.blocked_at
+                    SELECT g.title, g.logo_url, g.sort_order, g.is_bookmarked, g.blocked_at, g.channel_count
                     FROM groups g
                     WHERE {where_clause}
-                    ORDER BY g.is_bookmarked DESC, LOWER(g.title) ASC, g.title ASC
+                    ORDER BY LOWER(g.title) ASC, g.title ASC
                     LIMIT ?
                     "#
                 ))
@@ -202,8 +198,7 @@ pub async fn get_group(
 ) -> Result<Option<GroupDetail>, NeptuneError> {
     let row = sqlx::query(
         r#"
-        SELECT g.title, g.logo_url, g.sort_order, g.is_bookmarked, g.blocked_at,
-               (SELECT COUNT(1) FROM channels c WHERE c.group_title = g.title AND c.blocked_at IS NULL) AS channel_count
+        SELECT g.title, g.logo_url, g.sort_order, g.is_bookmarked, g.blocked_at, g.channel_count
         FROM groups g
         WHERE g.title = ?
         "#,
@@ -275,7 +270,7 @@ mod tests {
             ("Gamma", 3_i64, 0_i64),
         ] {
             sqlx::query(
-                "INSERT INTO groups (title, logo_url, sort_order, is_bookmarked, blocked_at) VALUES (?, '/group-default.svg', ?, ?, NULL)",
+                "INSERT INTO groups (title, logo_url, sort_order, is_bookmarked, blocked_at) VALUES (?, NULL, ?, ?, NULL)",
             )
             .bind(title)
             .bind(sort_order)
@@ -293,13 +288,13 @@ mod tests {
             .await
             .expect("first page should succeed");
         assert_eq!(page1.items.len(), 1);
-        assert_eq!(page1.items[0].title, "Beta");
+        assert_eq!(page1.items[0].title, "Alpha");
         assert!(page1.next_cursor.is_some());
 
         let page2 = list_groups(&pool, SortMode::Default, page1.next_cursor, 10)
             .await
             .expect("second page should succeed");
         assert_eq!(page2.items.len(), 1);
-        assert_eq!(page2.items[0].title, "Alpha");
+        assert_eq!(page2.items[0].title, "Beta");
     }
 }

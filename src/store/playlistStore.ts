@@ -5,36 +5,21 @@ import { adapter } from "@/lib/adapter";
 import { installImportEventListeners } from "@/hooks/useImportLifecycle";
 import { LocalPathSchema, RemoteUrlSchema } from "@/lib/schemas/playlist";
 import {
+  dismissToast,
+  notifyErrorKey,
+  notifyErrorMessage,
+  notifyInfo,
+  notifyProgress,
+  notifySuccess,
+} from "@/lib/toast";
+import {
   NeptuneClientError,
   type ImportPhase,
   type ImportCompleteEvent,
   type PlaylistMeta,
 } from "@/lib/types";
 
-const PROGRESS_NOTIFICATION_ID = "import-progress";
-
-export type AppNotificationKind = "info" | "success" | "error" | "progress";
-
-/**
- * UI notification descriptor. Either a plain `message` (e.g. backend / IPC error
- * messages that come pre-localized), or an i18n `messageKey` + `messageVars`
- * resolved at render time so language switches stay live.
- */
-export interface AppNotification {
-  id: string;
-  kind: AppNotificationKind;
-  message?: string;
-  messageKey?: string;
-  messageVars?: Record<string, unknown>;
-  createdAt: number;
-}
-
-function newId(): string {
-  if (typeof crypto !== "undefined" && "randomUUID" in crypto) {
-    return crypto.randomUUID();
-  }
-  return `n-${Date.now()}-${Math.random().toString(16).slice(2)}`;
-}
+const PROGRESS_TOAST_ID = "import-progress";
 
 /** Extract the first Zod issue message (which is now an i18n key). */
 function zodErrorKey(e: unknown): string {
@@ -69,7 +54,6 @@ export interface PlaylistState {
   hasPlaylist: boolean;
   importPhase: ImportPhase;
   progress: { inserted: number; groups: number; skipped: number };
-  notifications: AppNotification[];
   error: NeptuneClientError | null;
   shortcutsModalOpen: boolean;
 }
@@ -80,8 +64,6 @@ export interface PlaylistActions {
   importRemote: (url: string) => Promise<void>;
   cancelImport: () => Promise<void>;
   closePlaylist: () => Promise<void>;
-  dismissNotification: (id: string) => void;
-  clearNotifications: () => void;
   openShortcutsModal: () => void;
   closeShortcutsModal: () => void;
 }
@@ -89,39 +71,11 @@ export interface PlaylistActions {
 let importUnsub: (() => void) | null = null;
 
 export const usePlaylistStore = create<PlaylistState & PlaylistActions>()((set) => {
-  const upsertProgress = (vars: Record<string, unknown>) => {
-    const now = Date.now();
-    set((s) => ({
-      notifications: [
-        {
-          id: PROGRESS_NOTIFICATION_ID,
-          kind: "progress" as const,
-          messageKey: "toast.importProgress",
-          messageVars: vars,
-          createdAt: now,
-        },
-        ...s.notifications.filter((n) => n.id !== PROGRESS_NOTIFICATION_ID),
-      ],
-    }));
-  };
-  const removeProgress = () => {
-    set((s) => ({
-      notifications: s.notifications.filter((n) => n.id !== PROGRESS_NOTIFICATION_ID),
-    }));
-  };
-  const push = (n: Omit<AppNotification, "id" | "createdAt">) => {
-    const id = newId();
-    set((s) => ({
-      notifications: [{ id, ...n, createdAt: Date.now() }, ...s.notifications],
-    }));
-  };
-
   return {
     meta: null,
     hasPlaylist: false,
     importPhase: "idle",
     progress: emptyProgress(),
-    notifications: [],
     error: null,
     shortcutsModalOpen: false,
 
@@ -171,7 +125,7 @@ export const usePlaylistStore = create<PlaylistState & PlaylistActions>()((set) 
               skipped: e.skipped,
             },
           });
-          upsertProgress({ count: e.inserted });
+          notifyProgress(PROGRESS_TOAST_ID, "toast.importProgress", { count: e.inserted });
         },
         onComplete: async (c) => {
           const m = await adapter.getPlaylistMeta();
@@ -186,12 +140,8 @@ export const usePlaylistStore = create<PlaylistState & PlaylistActions>()((set) 
             },
             error: null,
           });
-          removeProgress();
-          push({
-            kind: "success",
-            messageKey: "toast.importCompleteSkipped",
-            messageVars: importCompleteVars(c),
-          });
+          dismissToast(PROGRESS_TOAST_ID);
+          notifySuccess("toast.importCompleteSkipped", importCompleteVars(c));
           const { onPlaylistImported } = await import("./index");
           await onPlaylistImported();
         },
@@ -206,8 +156,8 @@ export const usePlaylistStore = create<PlaylistState & PlaylistActions>()((set) 
               error: n,
               progress: emptyProgress(),
             });
-            removeProgress();
-            push({ kind: "error", message: n.message });
+            dismissToast(PROGRESS_TOAST_ID);
+            notifyErrorMessage(n.message);
             const { onPlaylistImportFailed } = await import("./index");
             onPlaylistImportFailed();
           })();
@@ -221,8 +171,8 @@ export const usePlaylistStore = create<PlaylistState & PlaylistActions>()((set) 
               importPhase: "cancelled",
               progress: emptyProgress(),
             });
-            removeProgress();
-            push({ kind: "info", messageKey: "toast.importCancelled" });
+            dismissToast(PROGRESS_TOAST_ID);
+            notifyInfo("toast.importCancelled");
             const { onPlaylistImportFailed } = await import("./index");
             onPlaylistImportFailed();
           })();
@@ -234,16 +184,16 @@ export const usePlaylistStore = create<PlaylistState & PlaylistActions>()((set) 
       try {
         LocalPathSchema.parse(path);
       } catch (e) {
-        push({ kind: "error", messageKey: zodErrorKey(e) });
+        notifyErrorKey(zodErrorKey(e));
         return;
       }
       set({ importPhase: "running", error: null, progress: emptyProgress() });
       try {
         await adapter.importPlaylistLocal(path);
       } catch (e) {
-        const n = NeptuneClientError.fromUnknown(e);
-        set({ importPhase: "failed", error: n });
-        push({ kind: "error", message: n.message });
+        // The toast is emitted by `errorReportingAdapter`; we only persist
+        // the error in store state for in-place UI feedback.
+        set({ importPhase: "failed", error: NeptuneClientError.fromUnknown(e) });
       }
     },
 
@@ -251,16 +201,14 @@ export const usePlaylistStore = create<PlaylistState & PlaylistActions>()((set) 
       try {
         RemoteUrlSchema.parse(url);
       } catch (e) {
-        push({ kind: "error", messageKey: zodErrorKey(e) });
+        notifyErrorKey(zodErrorKey(e));
         return;
       }
       set({ importPhase: "running", error: null, progress: emptyProgress() });
       try {
         await adapter.importPlaylistRemote(url);
       } catch (e) {
-        const n = NeptuneClientError.fromUnknown(e);
-        set({ importPhase: "failed", error: n });
-        push({ kind: "error", message: n.message });
+        set({ importPhase: "failed", error: NeptuneClientError.fromUnknown(e) });
       }
     },
 
@@ -268,9 +216,7 @@ export const usePlaylistStore = create<PlaylistState & PlaylistActions>()((set) 
       try {
         await adapter.cancelImport();
       } catch (e) {
-        const n = NeptuneClientError.fromUnknown(e);
-        set({ error: n });
-        push({ kind: "error", message: n.message });
+        set({ error: NeptuneClientError.fromUnknown(e) });
       }
     },
 
@@ -278,9 +224,7 @@ export const usePlaylistStore = create<PlaylistState & PlaylistActions>()((set) 
       try {
         await adapter.wipePlaylist();
       } catch (e) {
-        const n = NeptuneClientError.fromUnknown(e);
-        set({ error: n });
-        push({ kind: "error", message: n.message });
+        set({ error: NeptuneClientError.fromUnknown(e) });
         return;
       }
       const meta = await adapter.getPlaylistMeta();
@@ -291,17 +235,9 @@ export const usePlaylistStore = create<PlaylistState & PlaylistActions>()((set) 
         progress: emptyProgress(),
         error: null,
       });
-      removeProgress();
+      dismissToast(PROGRESS_TOAST_ID);
       const { resetBrowseStores } = await import("./index");
       resetBrowseStores();
-    },
-
-    dismissNotification: (id) => {
-      set((s) => ({ notifications: s.notifications.filter((n) => n.id !== id) }));
-    },
-
-    clearNotifications: () => {
-      set({ notifications: [] });
     },
   };
 });
@@ -317,8 +253,8 @@ export function __resetPlaylistStoreForTests(): void {
     hasPlaylist: false,
     importPhase: "idle",
     progress: emptyProgress(),
-    notifications: [],
     error: null,
     shortcutsModalOpen: false,
   });
+  dismissToast();
 }

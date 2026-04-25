@@ -99,7 +99,7 @@ export function createTauriAdapter(deps?: { invoke: InvokeFn; listen: ListenFn }
     listChannelsInGroup(args) {
       return wrap(
         inv<ChannelPage>("list_channels_in_group", {
-          group_title: args.groupTitle,
+          groupTitle: args.groupTitle,
           sort: args.sort,
           cursor: args.cursor ?? null,
           limit: args.limit ?? null,
@@ -109,7 +109,7 @@ export function createTauriAdapter(deps?: { invoke: InvokeFn; listen: ListenFn }
     listRecentlyWatched(args) {
       return wrap(
         inv<Channel[]>("list_recently_watched", {
-          group_title: args.groupTitle ?? null,
+          groupTitle: args.groupTitle ?? null,
           limit: args.limit ?? null,
         }),
       );
@@ -136,15 +136,15 @@ export function createTauriAdapter(deps?: { invoke: InvokeFn; listen: ListenFn }
       return wrap(
         inv<SearchResults>("search_global", {
           query: args.query,
-          group_limit: args.groupLimit ?? null,
-          channel_limit: args.channelLimit ?? null,
+          groupLimit: args.groupLimit ?? null,
+          channelLimit: args.channelLimit ?? null,
         }),
       );
     },
     searchChannelsInGroup(args) {
       return wrap(
         inv<ChannelPage>("search_channels_in_group", {
-          group_title: args.groupTitle,
+          groupTitle: args.groupTitle,
           query: args.query,
           cursor: args.cursor ?? null,
           limit: args.limit ?? null,

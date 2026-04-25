@@ -2,7 +2,11 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 
-import { useVirtualGrid } from "@/hooks/useVirtualGrid";
+import {
+  useVirtualGrid,
+  VIRTUAL_GRID_CARD_WIDTH_PX,
+  VIRTUAL_GRID_GAP_X_PX,
+} from "@/hooks/useVirtualGrid";
 import { cn } from "@/lib/utils";
 
 export type VirtualGridHandle = {
@@ -18,12 +22,22 @@ export type VirtualGridProps = {
   empty?: React.ReactNode;
   estimateRowHeight?: number;
   className?: string;
+  /**
+   * When set, the virtualizer and infinite-scroll `IntersectionObserver` use this element as the
+   * scroll root (single page scroll) instead of an inner `overflow-auto` on the grid. The grid
+   * grows in document flow; only the ancestor should scroll.
+   */
+  scrollParentRef?: React.RefObject<HTMLElement | null>;
 };
 
-const DEFAULT_ROW = 140;
+/** Initial row height before `measureElement` runs (card + text block ≈ real size). */
+const DEFAULT_ROW = 224;
+
+/** Space between virtualized rows (matches horizontal `gap-x-4`). */
+const ROW_GAP_PX = 16;
 
 /**
- * Row-virtualized grid with a dynamic column count (`~256px` min card width).
+ * Row-virtualized grid: fixed card width (see `VIRTUAL_GRID_CARD_WIDTH_PX`), column count from container width.
  */
 const VirtualGridInner = function VirtualGridInner(
   {
@@ -35,21 +49,34 @@ const VirtualGridInner = function VirtualGridInner(
     empty,
     estimateRowHeight = DEFAULT_ROW,
     className,
+    scrollParentRef,
   }: VirtualGridProps,
   ref: React.Ref<VirtualGridHandle | null>,
 ) {
   const { t } = useTranslation();
-  const parentRef = React.useRef<HTMLDivElement>(null);
-  const { columnCount } = useVirtualGrid(parentRef);
+  const internalScrollRef = React.useRef<HTMLDivElement>(null);
+  const widthRef = React.useRef<HTMLDivElement>(null);
+  const rootRef = scrollParentRef != null ? widthRef : internalScrollRef;
+  const { columnCount } = useVirtualGrid(rootRef);
   const rowCount = Math.max(0, Math.ceil(items.length / columnCount));
   const loadMoreRow = Boolean(hasMore && onLoadMore);
   const count = rowCount + (loadMoreRow ? 1 : 0);
 
+  const getScrollElement = React.useCallback(() => {
+    if (scrollParentRef?.current) {
+      return scrollParentRef.current;
+    }
+    return internalScrollRef.current;
+  }, [scrollParentRef]);
+
   const virtualizer = useVirtualizer({
     count,
-    getScrollElement: () => parentRef.current,
+    getScrollElement,
     estimateSize: () => estimateRowHeight,
     overscan: 4,
+    gap: ROW_GAP_PX,
+    paddingStart: ROW_GAP_PX,
+    paddingEnd: ROW_GAP_PX,
   });
 
   const scrollToItemIndex = React.useCallback(
@@ -70,7 +97,7 @@ const VirtualGridInner = function VirtualGridInner(
     if (!onLoadMore) {
       return;
     }
-    const root = parentRef.current;
+    const root = getScrollElement();
     const el = loadSentinelRef.current;
     if (!root || !el) {
       return;
@@ -87,24 +114,32 @@ const VirtualGridInner = function VirtualGridInner(
     return () => {
       io.disconnect();
     };
-  }, [onLoadMore, loadMoreRow, rowCount, items.length]);
-
-  if (items.length === 0 && !loadMoreRow) {
-    return <>{empty}</>;
-  }
+  }, [getScrollElement, onLoadMore, loadMoreRow, rowCount, items.length]);
 
   return (
-    <div ref={parentRef} className={cn("max-h-[min(70vh,800px)] overflow-auto", className)}>
+    <div
+      ref={rootRef}
+      className={cn(
+        scrollParentRef != null
+          ? "min-w-0 w-full"
+          : "max-h-[min(70vh,800px)] min-w-0 w-full overflow-auto",
+        className,
+      )}
+    >
+      {items.length === 0 && !loadMoreRow ? <div className="py-2">{empty}</div> : null}
       <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
         {virtualizer.getVirtualItems().map((v) => {
           if (v.index >= rowCount) {
             return (
               <div
                 key="load-more"
-                ref={loadSentinelRef}
-                className="absolute start-0 flex w-full items-center justify-center py-3 text-xs text-muted-foreground"
+                ref={(node) => {
+                  loadSentinelRef.current = node;
+                  virtualizer.measureElement(node);
+                }}
+                data-index={v.index}
+                className="absolute start-0 top-0 flex w-full items-center justify-center py-3 text-xs text-muted-foreground"
                 style={{
-                  height: v.size,
                   transform: `translateY(${v.start}px)`,
                 }}
               >
@@ -117,10 +152,15 @@ const VirtualGridInner = function VirtualGridInner(
           return (
             <div
               key={v.key}
-              className="absolute start-0 grid w-full gap-2"
+              ref={virtualizer.measureElement}
+              data-index={v.index}
+              className="absolute start-0 top-0 grid w-full items-start justify-start"
               style={{
-                gridTemplateColumns: `repeat(${columnCount}, minmax(0, 1fr))`,
-                height: v.size,
+                boxSizing: "border-box",
+                columnGap: VIRTUAL_GRID_GAP_X_PX,
+                gridTemplateColumns: `repeat(${columnCount}, ${VIRTUAL_GRID_CARD_WIDTH_PX}px)`,
+                paddingInlineStart: VIRTUAL_GRID_GAP_X_PX,
+                paddingInlineEnd: VIRTUAL_GRID_GAP_X_PX,
                 transform: `translateY(${v.start}px)`,
               }}
             >

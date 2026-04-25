@@ -1,9 +1,16 @@
-import { ChevronLeftIcon } from "lucide-react";
+import { ChevronLeftIcon, MoreVerticalIcon, StarIcon } from "lucide-react";
 import * as React from "react";
 import { useTranslation } from "react-i18next";
 
 import { ChannelCard } from "@/components/Card/ChannelCard";
 import { EmptyState } from "@/components/EmptyState";
+import { Button } from "@/components/ui/button";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Input } from "@/components/ui/input";
 import { AZIndexBar, firstIndexForLetter } from "@/components/List/AZIndexBar";
 import type { VirtualGridHandle } from "@/components/List/VirtualGrid";
@@ -16,6 +23,7 @@ import { useGroupStore } from "@/store/groupStore";
 import { usePlayerStore } from "@/store/playerStore";
 import { useSearchStore } from "@/store/searchStore";
 import { useSettingsStore } from "@/store/settingsStore";
+import { cn } from "@/lib/utils";
 import type { Channel } from "@/lib/types";
 
 import { virtualGroupTitleKey } from "./groupLabels";
@@ -23,6 +31,7 @@ import { virtualGroupTitleKey } from "./groupLabels";
 export function GroupDetailView() {
   const { t } = useTranslation();
   const activeTitle = useGroupStore((s) => s.activeGroupTitle) ?? "";
+  const activeGroupDetail = useGroupStore((s) => s.activeGroupDetail);
   const favoriteItems = usePlayerStore((s) => s.favoriteItems);
   const favoriteNext = usePlayerStore((s) => s.favoriteNextCursor);
   const recentInGroup = usePlayerStore((s) => s.recentInGroup);
@@ -39,10 +48,16 @@ export function GroupDetailView() {
   const sortMode = useSettingsStore((s) => s.sortMode);
   const { isChannelFocused } = useFocusedItem();
   const gridRef = React.useRef<VirtualGridHandle | null>(null);
+  const pageScrollRef = React.useRef<HTMLDivElement>(null);
 
   const isFav = activeTitle === VIRTUAL_FAVORITE_CHANNELS;
   const isRw = activeTitle === VIRTUAL_RECENTLY_WATCHED;
+  const isRealGroup = !isFav && !isRw;
   const searching = scopedQ.trim().length > 0;
+  const favoriteInGroup = React.useMemo(
+    () => favoriteItems.filter((c) => c.groupTitle === activeTitle),
+    [activeTitle, favoriteItems],
+  );
 
   let list: Channel[] = channelItems;
   let hasMore = chNext != null;
@@ -74,7 +89,7 @@ export function GroupDetailView() {
   const heading: string = virtualKey ? t(virtualKey) : activeTitle;
 
   return (
-    <div className="min-h-0 flex-1 space-y-4 overflow-y-auto p-4">
+    <div ref={pageScrollRef} className="min-h-0 flex flex-1 flex-col gap-4 overflow-y-auto p-4">
       <div className="flex flex-wrap items-center gap-2">
         <button
           type="button"
@@ -89,6 +104,48 @@ export function GroupDetailView() {
         </button>
         <span className="text-muted-foreground">{t("groupDetail.breadcrumbSeparator")}</span>
         <h1 className="text-base font-semibold">{heading}</h1>
+        {isRealGroup && activeGroupDetail ? (
+          <div className="ms-auto flex items-center gap-1">
+            <Button
+              type="button"
+              size="icon-sm"
+              variant="ghost"
+              aria-label={t("card.bookmarkGroup")}
+              aria-pressed={activeGroupDetail.isBookmarked === 1}
+              onClick={() => {
+                void useGroupStore.getState().toggleBookmark(activeTitle);
+              }}
+            >
+              <StarIcon
+                className={cn(
+                  "size-4",
+                  activeGroupDetail.isBookmarked === 1 && "fill-primary text-primary",
+                )}
+              />
+            </Button>
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button
+                  type="button"
+                  size="icon-sm"
+                  variant="ghost"
+                  aria-label={t("groupDetail.actions")}
+                >
+                  <MoreVerticalIcon className="size-4" />
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onClick={() => {
+                    void useGroupStore.getState().toggleBlocked(activeTitle, true);
+                  }}
+                >
+                  {t("contextMenu.blockGroup")}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          </div>
+        ) : null}
       </div>
       {!isFav && !isRw ? (
         <div className="max-w-md">
@@ -100,6 +157,18 @@ export function GroupDetailView() {
             onChange={(e) => {
               setScoped(e.target.value, activeTitle);
             }}
+          />
+        </div>
+      ) : null}
+      {!isFav && !isRw && !searching && favoriteInGroup.length > 0 ? (
+        <div>
+          <h2 className="mb-2 text-sm font-medium">{t("groupDetail.favoriteChannels")}</h2>
+          <VirtualHorizontalRow
+            items={favoriteInGroup}
+            getKey={(c) => (c as Channel).id}
+            renderItem={(c) => (
+              <ChannelCard channel={c as Channel} isFocused={isChannelFocused((c as Channel).id)} />
+            )}
           />
         </div>
       ) : null}
@@ -115,7 +184,7 @@ export function GroupDetailView() {
           />
         </div>
       ) : null}
-      <div className="relative min-h-48">
+      <div className="relative flex flex-col">
         {sortMode === "name" && forAz.length > 50 && !searching ? (
           <AZIndexBar
             items={forAz}
@@ -130,6 +199,7 @@ export function GroupDetailView() {
         ) : null}
         <VirtualGrid
           ref={gridRef}
+          scrollParentRef={pageScrollRef}
           items={list}
           getKey={(c) => (c as Channel).id}
           hasMore={hasMore}

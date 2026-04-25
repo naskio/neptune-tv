@@ -60,6 +60,7 @@ export const ar: LocaleResources = {
     badge: {
       imported: "تم الاستيراد {{when}}",
       stats: "{{channels, number}} قناة · {{groups, number}} مجموعات",
+      detailsButton: "تفاصيل الاستيراد",
     },
   },
 
@@ -101,7 +102,9 @@ export const ar: LocaleResources = {
   groupDetail: {
     home: "الرئيسية",
     breadcrumbSeparator: "‹",
+    actions: "إجراءات المجموعة",
     scopedSearch: "ابحث داخل هذه المجموعة…",
+    favoriteChannels: "القنوات المفضّلة",
     recentInGroup: "شوهد مؤخّرًا في هذه المجموعة",
     empty: {
       noChannelsTitle: "لا توجد قنوات",
@@ -111,6 +114,7 @@ export const ar: LocaleResources = {
 
   virtualGroups: {
     favoriteChannels: "القنوات المفضّلة",
+    favoriteGroups: "المجموعات المفضّلة",
     recentlyWatched: "شوهد مؤخّرًا",
   },
 
@@ -120,6 +124,8 @@ export const ar: LocaleResources = {
     nothingDescription: "ليس لديك أي مجموعات أو قنوات محظورة.",
     groupsHeading: "المجموعات المحظورة",
     channelsHeading: "القنوات المحظورة",
+    groupsEmptyWithChannels: "لا توجد مجموعات محظورة. لديك فقط قنوات محظورة.",
+    channelsEmptyWithGroups: "لا توجد قنوات محظورة. لديك فقط مجموعات محظورة.",
     unblock: "إلغاء الحظر",
     loadMore: "تحميل المزيد",
   },
@@ -174,6 +180,7 @@ export const ar: LocaleResources = {
 
   sidebar: {
     heading: "المجموعات",
+    closeSheet: "إغلاق",
   },
 
   contextMenu: {
@@ -193,6 +200,7 @@ export const ar: LocaleResources = {
     importCompleteSkipped_other:
       "تم استيراد {{channels, number}} قناة و {{groups, number}} مجموعة. تم تخطّي {{skipped, number}} إدخال.",
     importCancelled: "تم إلغاء الاستيراد.",
+    ipcFailed: "حدث خطأ ({{command}}): {{message}}",
   },
 
   windowTitle: {

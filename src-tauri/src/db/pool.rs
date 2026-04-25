@@ -21,13 +21,11 @@ pub async fn init_pool(app: &tauri::AppHandle) -> Result<SqlitePool, NeptuneErro
         db_path = std::env::current_dir()?.join(db_path);
     }
 
-    let connect_options = SqliteConnectOptions::from_str(&format!(
-        "sqlite://{}",
-        db_path.to_string_lossy()
-    ))?
-    .create_if_missing(true)
-    .journal_mode(SqliteJournalMode::Wal)
-    .synchronous(SqliteSynchronous::Normal);
+    let connect_options =
+        SqliteConnectOptions::from_str(&format!("sqlite://{}", db_path.to_string_lossy()))?
+            .create_if_missing(true)
+            .journal_mode(SqliteJournalMode::Wal)
+            .synchronous(SqliteSynchronous::Normal);
 
     let pool = SqlitePoolOptions::new()
         .max_connections(5)

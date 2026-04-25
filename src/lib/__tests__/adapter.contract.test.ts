@@ -55,7 +55,7 @@ function createDelegatingInvoke(adapter: NeptuneAdapter) {
       case "list_channels_in_group": {
         const c = ar.cursor;
         return adapter.listChannelsInGroup({
-          groupTitle: String(ar.group_title),
+          groupTitle: String(ar.groupTitle),
           sort: ar.sort as SortMode,
           cursor: c != null && c !== "" ? asCursor(String(c)) : undefined,
           limit: ar.limit as number | undefined,
@@ -64,9 +64,9 @@ function createDelegatingInvoke(adapter: NeptuneAdapter) {
       case "list_recently_watched":
         return adapter.listRecentlyWatched({
           groupTitle:
-            ar.group_title === null || ar.group_title === undefined
+            ar.groupTitle === null || ar.groupTitle === undefined
               ? undefined
-              : String(ar.group_title),
+              : String(ar.groupTitle),
           limit: ar.limit as number | undefined,
         });
       case "list_favorite_channels": {
@@ -86,13 +86,13 @@ function createDelegatingInvoke(adapter: NeptuneAdapter) {
       case "search_global":
         return adapter.searchGlobal({
           query: String(ar.query),
-          groupLimit: (ar.group_limit as number) ?? undefined,
-          channelLimit: (ar.channel_limit as number) ?? undefined,
+          groupLimit: (ar.groupLimit as number) ?? undefined,
+          channelLimit: (ar.channelLimit as number) ?? undefined,
         });
       case "search_channels_in_group": {
         const c = ar.cursor;
         return adapter.searchChannelsInGroup({
-          groupTitle: String(ar.group_title),
+          groupTitle: String(ar.groupTitle),
           query: String(ar.query),
           cursor: c != null && c !== "" ? asCursor(String(c)) : undefined,
           limit: ar.limit as number | undefined,
@@ -216,6 +216,63 @@ describe("NeptuneClientError.fromUnknown (tauri error shape)", () => {
       message: "x",
     });
     expect(e.kind).toBe("importAlreadyRunning");
+  });
+});
+
+// Regression: Tauri 2.x deserializes command arguments as camelCase by default. Sending
+// snake_case keys (`group_title`, `group_limit`, ...) makes the IPC fail with
+// "missing required key groupTitle" and the affected views render as empty.
+describe("createTauriAdapter sends camelCase IPC arg keys", () => {
+  function captureLastInvoke() {
+    const calls: { cmd: string; args: Record<string, unknown> }[] = [];
+    const fakeInvoke = (async (cmd: string, args?: unknown) => {
+      calls.push({ cmd, args: asRecord(args) });
+      return undefined;
+    }) as typeof import("@tauri-apps/api/core").invoke;
+    const a = createTauriAdapter({ invoke: fakeInvoke, listen: noopListen });
+    return { a, calls };
+  }
+
+  function lastCall(calls: { cmd: string; args: Record<string, unknown> }[]) {
+    const c = calls[calls.length - 1];
+    if (!c) {
+      throw new Error("no invoke call recorded");
+    }
+    return c;
+  }
+
+  it("listChannelsInGroup uses groupTitle (not group_title)", async () => {
+    const { a, calls } = captureLastInvoke();
+    await a.listChannelsInGroup({ groupTitle: "Sports", sort: "default", limit: 10 });
+    const last = lastCall(calls);
+    expect(last.cmd).toBe("list_channels_in_group");
+    expect(last.args).toHaveProperty("groupTitle", "Sports");
+    expect(last.args).not.toHaveProperty("group_title");
+  });
+
+  it("listRecentlyWatched uses groupTitle (not group_title)", async () => {
+    const { a, calls } = captureLastInvoke();
+    await a.listRecentlyWatched({ groupTitle: "News", limit: 10 });
+    const last = lastCall(calls);
+    expect(last.args).toHaveProperty("groupTitle", "News");
+    expect(last.args).not.toHaveProperty("group_title");
+  });
+
+  it("searchGlobal uses groupLimit / channelLimit (not snake_case)", async () => {
+    const { a, calls } = captureLastInvoke();
+    await a.searchGlobal({ query: "x", groupLimit: 5, channelLimit: 20 });
+    const last = lastCall(calls);
+    expect(last.args).toMatchObject({ groupLimit: 5, channelLimit: 20 });
+    expect(last.args).not.toHaveProperty("group_limit");
+    expect(last.args).not.toHaveProperty("channel_limit");
+  });
+
+  it("searchChannelsInGroup uses groupTitle (not group_title)", async () => {
+    const { a, calls } = captureLastInvoke();
+    await a.searchChannelsInGroup({ groupTitle: "Sports", query: "x", limit: 10 });
+    const last = lastCall(calls);
+    expect(last.args).toHaveProperty("groupTitle", "Sports");
+    expect(last.args).not.toHaveProperty("group_title");
   });
 });
 

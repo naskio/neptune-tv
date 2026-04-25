@@ -18,6 +18,19 @@ async function boot() {
   await usePlayerStore.getState().init();
 }
 
+async function getAnyChannelId() {
+  const groups = useGroupStore.getState().items;
+  for (const group of groups) {
+    const page = await mockAdapter.listChannelsInGroup({
+      groupTitle: group.title,
+      sort: "default",
+      limit: 1,
+    });
+    if (page.items[0]) return page.items[0].id;
+  }
+  throw new Error("Expected at least one channel in mock data");
+}
+
 describe("BlockedPage", () => {
   beforeEach(async () => {
     await boot();
@@ -30,7 +43,11 @@ describe("BlockedPage", () => {
     const user = userEvent.setup();
     render(<BlockedPage />);
     await waitFor(() => {
-      expect(screen.getByText(/blocked groups/i)).toBeInTheDocument();
+      expect(
+        screen.getByRole("heading", {
+          name: /blocked groups/i,
+        }),
+      ).toBeInTheDocument();
     });
     const title = usePlayerStore.getState().blockedGroups[0]!.title;
     await waitFor(() => {
@@ -42,6 +59,33 @@ describe("BlockedPage", () => {
       expect(
         usePlayerStore.getState().blockedGroups.find((g) => g.title === title),
       ).toBeUndefined();
+    });
+  });
+
+  it("shows a contextual message when no blocked channels exist", async () => {
+    render(<BlockedPage />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("No blocked channels. You only have blocked groups."),
+      ).toBeInTheDocument();
+    });
+  });
+
+  it("shows a contextual message when no blocked groups exist", async () => {
+    const groupTitle = useGroupStore.getState().items[0]!.title;
+    const firstChannelId = await getAnyChannelId();
+
+    await mockAdapter.setGroupBlocked(groupTitle, false);
+    await mockAdapter.setChannelBlocked(firstChannelId, true);
+    await usePlayerStore.getState().refreshBlocked();
+
+    render(<BlockedPage />);
+
+    await waitFor(() => {
+      expect(
+        screen.getByText("No blocked groups. You only have blocked channels."),
+      ).toBeInTheDocument();
     });
   });
 });

@@ -3,7 +3,12 @@ import { create } from "zustand";
 import { adapter } from "@/lib/adapter";
 import { NeptuneClientError, type Cursor, type Group, type GroupDetail } from "@/lib/types";
 
-import { PAGE_SIZE, VIRTUAL_FAVORITE_CHANNELS, VIRTUAL_RECENTLY_WATCHED } from "./constants";
+import {
+  PAGE_SIZE,
+  VIRTUAL_FAVORITE_CHANNELS,
+  VIRTUAL_FAVORITE_GROUPS,
+  VIRTUAL_RECENTLY_WATCHED,
+} from "./constants";
 import { usePlayerStore } from "./playerStore";
 import { useSearchStore } from "./searchStore";
 import { usePlaylistStore } from "./playlistStore";
@@ -96,25 +101,42 @@ export const useGroupStore = create<GroupState & GroupActions>()((set, get) => (
     if (title === null) {
       set({ activeGroupTitle: null, activeGroupDetail: null, error: null });
       usePlayerStore.setState({ recentInGroup: [] });
+      const { useChannelStore } = await import("./channelStore");
+      useChannelStore.getState().reset();
       return;
     }
     set({ activeGroupTitle: title, error: null });
-    if (title === VIRTUAL_FAVORITE_CHANNELS || title === VIRTUAL_RECENTLY_WATCHED) {
+    if (
+      title === VIRTUAL_FAVORITE_CHANNELS ||
+      title === VIRTUAL_RECENTLY_WATCHED ||
+      title === VIRTUAL_FAVORITE_GROUPS
+    ) {
       usePlayerStore.setState({ recentInGroup: [] });
+      const { useChannelStore } = await import("./channelStore");
+      void useChannelStore.getState().loadFirstPage(title);
+      const favoriteGroupsCount = get().items.filter((g) => g.isBookmarked === 1).length;
       set({
         activeGroupDetail: {
           title,
-          logoUrl: "/group-default.svg",
+          logoUrl: null,
           sortOrder: 0,
           isBookmarked: 0,
           blockedAt: null,
           channelCount:
             title === VIRTUAL_FAVORITE_CHANNELS
               ? usePlayerStore.getState().favoriteItems.length
-              : usePlayerStore.getState().recentlyWatched.length,
+              : title === VIRTUAL_RECENTLY_WATCHED
+                ? usePlayerStore.getState().recentlyWatched.length
+                : favoriteGroupsCount,
         },
       });
       return;
+    }
+    {
+      const { useChannelStore } = await import("./channelStore");
+      // Trigger channel loading directly on selection; this avoids relying only on
+      // cross-store subscription timing for the first group open.
+      void useChannelStore.getState().loadFirstPage(title);
     }
     try {
       const g = await adapter.getGroup(title);
@@ -165,11 +187,26 @@ export const useGroupStore = create<GroupState & GroupActions>()((set, get) => (
         activeGroupTitle: prev.activeGroupTitle === title ? null : prev.activeGroupTitle,
         activeGroupDetail: prev.activeGroupTitle === title ? null : prev.activeGroupDetail,
       });
+      if (prev.activeGroupTitle === title) {
+        usePlayerStore.setState({ recentInGroup: [] });
+      }
     }
     try {
       await adapter.setGroupBlocked(title, value);
-      const { usePlayerStore } = await import("./playerStore");
-      void usePlayerStore.getState().refreshBlocked();
+      await Promise.all([
+        usePlayerStore.getState().refreshBlocked(),
+        usePlayerStore.getState().refreshFavorites(),
+        usePlayerStore.getState().refreshRecentlyWatched(),
+      ]);
+      const activeGroupTitle = get().activeGroupTitle;
+      if (
+        activeGroupTitle &&
+        activeGroupTitle !== VIRTUAL_FAVORITE_CHANNELS &&
+        activeGroupTitle !== VIRTUAL_FAVORITE_GROUPS &&
+        activeGroupTitle !== VIRTUAL_RECENTLY_WATCHED
+      ) {
+        await usePlayerStore.getState().loadRecentInGroup(activeGroupTitle);
+      }
       void get().loadFirstPage();
     } catch (e) {
       set({ items: prevItems, error: NeptuneClientError.fromUnknown(e) });

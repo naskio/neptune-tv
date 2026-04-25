@@ -94,7 +94,7 @@ mod tests {
         assert!(!is_playlist_loaded(&pool).await.expect("query should work"));
 
         sqlx::query(
-            "INSERT INTO groups (title, logo_url, sort_order, is_bookmarked, blocked_at) VALUES ('Sports', '/group-default.svg', 1, 0, NULL)",
+            "INSERT INTO groups (title, logo_url, sort_order, is_bookmarked, blocked_at) VALUES ('Sports', NULL, 1, 0, NULL)",
         )
         .execute(&pool)
         .await
@@ -104,7 +104,7 @@ mod tests {
             INSERT INTO channels (
                 name, group_title, stream_url, logo_url, duration, tvg_id, tvg_name, tvg_chno, tvg_language,
                 tvg_country, tvg_shift, tvg_rec, tvg_url, tvg_extras, watched_at, bookmarked_at, blocked_at
-            ) VALUES ('Sky Sports 1', 'Sports', 'https://example.com/sky1', '/channel-default.svg',
+            ) VALUES ('Sky Sports 1', 'Sports', 'https://example.com/sky1', NULL,
                 -1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
             "#,
         )

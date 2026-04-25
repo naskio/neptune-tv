@@ -1,5 +1,40 @@
-import { useImageFallback } from "@/hooks/useImageFallback";
+import { useEffect, useState } from "react";
+import ChannelDefaultIcon from "@/assets/channel-default.svg?react";
+import GroupDefaultIcon from "@/assets/group-default.svg?react";
+import channelDefaultAssetUrl from "@/assets/channel-default.svg?url";
+import groupDefaultAssetUrl from "@/assets/group-default.svg?url";
+
 import { cn } from "@/lib/utils";
+
+function isDefaultIconSrc(src: string, kind: "group" | "channel"): boolean {
+  if (src.trim().length === 0) {
+    return true;
+  }
+  const legacyFallback = kind === "group" ? "/group-default.svg" : "/channel-default.svg";
+  const assetFallback = kind === "group" ? groupDefaultAssetUrl : channelDefaultAssetUrl;
+  return src === legacyFallback || src.endsWith(legacyFallback) || src === assetFallback;
+}
+
+function DefaultFallbackIcon({
+  kind,
+  alt,
+  className,
+}: {
+  kind: "group" | "channel";
+  alt: string;
+  className?: string;
+}) {
+  const Icon = kind === "group" ? GroupDefaultIcon : ChannelDefaultIcon;
+
+  return (
+    <Icon
+      className={cn("h-full w-full p-3 text-foreground", className)}
+      role={alt ? "img" : undefined}
+      aria-label={alt || undefined}
+      aria-hidden={alt ? undefined : true}
+    />
+  );
+}
 
 export function CardImage({
   src,
@@ -7,19 +42,32 @@ export function CardImage({
   kind,
   className,
 }: {
-  src: string;
+  src?: string | null;
   alt: string;
   kind: "group" | "channel";
   className?: string;
 }) {
-  const onError = useImageFallback(kind);
+  const [showDefaultIcon, setShowDefaultIcon] = useState(
+    src == null || isDefaultIconSrc(src, kind),
+  );
+
+  useEffect(() => {
+    setShowDefaultIcon(src == null || isDefaultIconSrc(src, kind));
+  }, [src, kind]);
+
+  if (showDefaultIcon) {
+    return <DefaultFallbackIcon kind={kind} alt={alt} className={className} />;
+  }
+
   return (
     <img
-      src={src}
+      src={src ?? ""}
       alt={alt}
       loading="lazy"
-      className={cn("h-20 w-full object-contain", className)}
-      onError={onError}
+      className={cn("h-full w-full object-contain p-3", className)}
+      onError={() => {
+        setShowDefaultIcon(true);
+      }}
     />
   );
 }

@@ -75,14 +75,31 @@ function coalesceBm(c: Channel): number {
 }
 
 function chSortDef(a: Channel, b: Channel): number {
-  const x = coalesceBm(a) - coalesceBm(b);
-  if (x !== 0) {
-    return -x;
-  }
   return a.id - b.id;
 }
 
 function chSortName(a: Channel, b: Channel): number {
+  const al = a.name.toLowerCase();
+  const bl = b.name.toLowerCase();
+  if (al !== bl) {
+    return al.localeCompare(bl);
+  }
+  return a.id - b.id;
+}
+
+function afterChDef(c: Channel, k: { bookmarkedAt: number; id: number }): boolean {
+  return c.id > k.id;
+}
+
+function afterChName(
+  c: Channel,
+  k: { bookmarkedAt: number; nameLower: string; id: number },
+): boolean {
+  const nl = c.name.toLowerCase();
+  return nl > k.nameLower || (nl === k.nameLower && c.id > k.id);
+}
+
+function chSortNameBookmarkedFirst(a: Channel, b: Channel): number {
   const x = coalesceBm(a) - coalesceBm(b);
   if (x !== 0) {
     return -x;
@@ -95,12 +112,7 @@ function chSortName(a: Channel, b: Channel): number {
   return a.id - b.id;
 }
 
-function afterChDef(c: Channel, k: { bookmarkedAt: number; id: number }): boolean {
-  const b = coalesceBm(c);
-  return b < k.bookmarkedAt || (b === k.bookmarkedAt && c.id > k.id);
-}
-
-function afterChName(
+function afterChNameBookmarkedFirst(
   c: Channel,
   k: { bookmarkedAt: number; nameLower: string; id: number },
 ): boolean {
@@ -165,10 +177,44 @@ function listChannelsPage(
   return { items: page, nextCursor: next };
 }
 
-function groupSortDef(a: Group, b: Group): number {
-  if (a.isBookmarked !== b.isBookmarked) {
-    return b.isBookmarked - a.isBookmarked;
+function listSearchChannelsPage(
+  candidates: Channel[],
+  cursor: Cursor | undefined,
+  limit: number,
+): ChannelPage {
+  const sorted = [...candidates].sort(chSortNameBookmarkedFirst);
+  let start = 0;
+  if (cursor) {
+    const o = jsonCursor(cursor) as {
+      sort: SortMode;
+      bookmarkedAt: number;
+      nameLower: string;
+      id: number;
+    };
+    if (o.sort !== "name") {
+      throw new NeptuneClientError("invalidRequest", "cursor sort mismatch");
+    }
+    const idx = sorted.findIndex((c) => afterChNameBookmarkedFirst(c, o));
+    start = idx < 0 ? sorted.length : idx;
   }
+  const page = sorted.slice(start, start + limit);
+  if (page.length === 0) {
+    return { items: [], nextCursor: null };
+  }
+  const tail = page[page.length - 1]!;
+  const hasMore = start + page.length < sorted.length;
+  const next: Cursor | null = hasMore
+    ? (encodeCursorJson({
+        sort: "name" as const,
+        bookmarkedAt: coalesceBm(tail),
+        nameLower: tail.name.toLowerCase(),
+        id: tail.id,
+      }) as Cursor)
+    : null;
+  return { items: page, nextCursor: next };
+}
+
+function groupSortDef(a: Group, b: Group): number {
   if (a.sortOrder !== b.sortOrder) {
     return a.sortOrder - b.sortOrder;
   }
@@ -176,9 +222,6 @@ function groupSortDef(a: Group, b: Group): number {
 }
 
 function groupSortName(a: Group, b: Group): number {
-  if (a.isBookmarked !== b.isBookmarked) {
-    return b.isBookmarked - a.isBookmarked;
-  }
   const al = a.title.toLowerCase();
   const bl = b.title.toLowerCase();
   if (al !== bl) {
@@ -191,11 +234,7 @@ function afterGrpDef(
   g: Group,
   k: { isBookmarked: number; sortOrder: number; title: string },
 ): boolean {
-  return (
-    g.isBookmarked < k.isBookmarked ||
-    (g.isBookmarked === k.isBookmarked &&
-      (g.sortOrder > k.sortOrder || (g.sortOrder === k.sortOrder && g.title > k.title)))
-  );
+  return g.sortOrder > k.sortOrder || (g.sortOrder === k.sortOrder && g.title > k.title);
 }
 
 function afterGrpName(
@@ -203,11 +242,7 @@ function afterGrpName(
   k: { isBookmarked: number; titleLower: string; title: string },
 ): boolean {
   const gl = g.title.toLowerCase();
-  return (
-    g.isBookmarked < k.isBookmarked ||
-    (g.isBookmarked === k.isBookmarked &&
-      (gl > k.titleLower || (gl === k.titleLower && g.title > k.title)))
-  );
+  return gl > k.titleLower || (gl === k.titleLower && g.title > k.title);
 }
 
 function listGroupPage(
@@ -503,20 +538,7 @@ export const mockAdapter: NeptuneAdapter = {
     if (!g) {
       return null;
     }
-    let channelCount = 0;
-    for (const c of state.channels.values()) {
-      if (c.groupTitle === g.title && c.blockedAt === null) {
-        channelCount += 1;
-      }
-    }
-    return {
-      title: g.title,
-      logoUrl: g.logoUrl,
-      sortOrder: g.sortOrder,
-      isBookmarked: g.isBookmarked,
-      blockedAt: g.blockedAt,
-      channelCount,
-    };
+    return { ...g };
   },
   async setGroupBookmarked(title, value) {
     const g = state.groups.get(title);
@@ -582,7 +604,14 @@ export const mockAdapter: NeptuneAdapter = {
     if (!c) {
       throw new NeptuneClientError("invalidRequest", "channel not found");
     }
+    const wasBlocked = c.blockedAt != null;
     c.blockedAt = value ? nowSec() : null;
+    if (wasBlocked !== value) {
+      const g = state.groups.get(c.groupTitle);
+      if (g) {
+        g.channelCount = Math.max(0, g.channelCount + (value ? -1 : 1));
+      }
+    }
   },
   async searchGlobal(args) {
     const gLim = args.groupLimit ?? 5;
@@ -598,7 +627,20 @@ export const mockAdapter: NeptuneAdapter = {
         gs.push({ g, s });
       }
     }
-    gs.sort((a, b) => b.s - a.s);
+    gs.sort((a, b) => {
+      if (a.g.isBookmarked !== b.g.isBookmarked) {
+        return b.g.isBookmarked - a.g.isBookmarked;
+      }
+      if (a.s !== b.s) {
+        return b.s - a.s;
+      }
+      const al = a.g.title.toLowerCase();
+      const bl = b.g.title.toLowerCase();
+      if (al !== bl) {
+        return al.localeCompare(bl);
+      }
+      return a.g.title.localeCompare(b.g.title);
+    });
     const cs: { c: Channel; s: number }[] = [];
     for (const c of state.channels.values()) {
       if (!isListableChannel(c, state.groups)) {
@@ -609,7 +651,21 @@ export const mockAdapter: NeptuneAdapter = {
         cs.push({ c, s });
       }
     }
-    cs.sort((a, b) => b.s - a.s);
+    cs.sort((a, b) => {
+      const bm = coalesceBm(b.c) - coalesceBm(a.c);
+      if (bm !== 0) {
+        return bm;
+      }
+      if (a.s !== b.s) {
+        return b.s - a.s;
+      }
+      const al = a.c.name.toLowerCase();
+      const bl = b.c.name.toLowerCase();
+      if (al !== bl) {
+        return al.localeCompare(bl);
+      }
+      return a.c.id - b.c.id;
+    });
     return {
       groups: gs.slice(0, gLim).map((x) => x.g),
       channels: cs.slice(0, cLim).map((x) => x.c),
@@ -628,7 +684,7 @@ export const mockAdapter: NeptuneAdapter = {
         cands.push(c);
       }
     }
-    return listChannelsPage(cands, "name", args.cursor, lim);
+    return listSearchChannelsPage(cands, args.cursor, lim);
   },
   async listBlockedGroups(args) {
     const lim = args.limit ?? 50;

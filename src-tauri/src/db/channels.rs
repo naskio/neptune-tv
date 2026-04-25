@@ -110,8 +110,8 @@ async fn list_channels_filtered(
                     FROM channels c
                     JOIN groups g ON g.title = c.group_title
                     WHERE {where_clause}
-                      AND (COALESCE(c.bookmarked_at, 0) < ? OR (COALESCE(c.bookmarked_at, 0) = ? AND c.id > ?))
-                    ORDER BY COALESCE(c.bookmarked_at, 0) DESC, c.id ASC
+                      AND c.id > ?
+                    ORDER BY c.id ASC
                     LIMIT ?
                     "#
                 )
@@ -124,7 +124,7 @@ async fn list_channels_filtered(
                     FROM channels c
                     JOIN groups g ON g.title = c.group_title
                     WHERE {where_clause}
-                    ORDER BY COALESCE(c.bookmarked_at, 0) DESC, c.id ASC
+                    ORDER BY c.id ASC
                     LIMIT ?
                     "#
                 )
@@ -134,10 +134,7 @@ async fn list_channels_filtered(
                 query = query.bind(bind);
             }
             if let Some(decoded) = decoded {
-                query = query
-                    .bind(decoded.bookmarked_at)
-                    .bind(decoded.bookmarked_at)
-                    .bind(decoded.id);
+                query = query.bind(decoded.id);
             }
             query.bind(limit + 1).fetch_all(pool).await?
         }
@@ -155,9 +152,8 @@ async fn list_channels_filtered(
                     FROM channels c
                     JOIN groups g ON g.title = c.group_title
                     WHERE {where_clause}
-                      AND (COALESCE(c.bookmarked_at, 0) < ?
-                           OR (COALESCE(c.bookmarked_at, 0) = ? AND (LOWER(c.name) > ? OR (LOWER(c.name) = ? AND c.id > ?))))
-                    ORDER BY COALESCE(c.bookmarked_at, 0) DESC, LOWER(c.name) ASC, c.id ASC
+                      AND (LOWER(c.name) > ? OR (LOWER(c.name) = ? AND c.id > ?))
+                    ORDER BY LOWER(c.name) ASC, c.id ASC
                     LIMIT ?
                     "#
                 )
@@ -170,7 +166,7 @@ async fn list_channels_filtered(
                     FROM channels c
                     JOIN groups g ON g.title = c.group_title
                     WHERE {where_clause}
-                    ORDER BY COALESCE(c.bookmarked_at, 0) DESC, LOWER(c.name) ASC, c.id ASC
+                    ORDER BY LOWER(c.name) ASC, c.id ASC
                     LIMIT ?
                     "#
                 )
@@ -181,8 +177,6 @@ async fn list_channels_filtered(
             }
             if let Some(decoded) = decoded {
                 query = query
-                    .bind(decoded.bookmarked_at)
-                    .bind(decoded.bookmarked_at)
                     .bind(decoded.name_lower.clone())
                     .bind(decoded.name_lower)
                     .bind(decoded.id);
@@ -312,17 +306,41 @@ pub async fn set_channel_blocked(
     id: i64,
     value: bool,
 ) -> Result<(), NeptuneError> {
+    let mut tx = pool.begin().await?;
+    let row = sqlx::query("SELECT group_title, blocked_at FROM channels WHERE id = ?")
+        .bind(id)
+        .fetch_optional(&mut *tx)
+        .await?;
+    let Some(row) = row else {
+        tx.commit().await?;
+        return Ok(());
+    };
+    let group_title: String = row.get("group_title");
+    let was_blocked = row.get::<Option<i64>, _>("blocked_at").is_some();
+
     if value {
         sqlx::query("UPDATE channels SET blocked_at = strftime('%s','now') WHERE id = ?")
             .bind(id)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
     } else {
         sqlx::query("UPDATE channels SET blocked_at = NULL WHERE id = ?")
             .bind(id)
-            .execute(pool)
+            .execute(&mut *tx)
             .await?;
     }
+
+    if was_blocked != value {
+        let delta: i64 = if value { -1 } else { 1 };
+        sqlx::query(
+            "UPDATE groups SET channel_count = MAX(channel_count + ?, 0) WHERE title = ?",
+        )
+        .bind(delta)
+        .bind(group_title)
+        .execute(&mut *tx)
+        .await?;
+    }
+    tx.commit().await?;
     Ok(())
 }
 
@@ -351,10 +369,10 @@ mod tests {
     use sqlx::{sqlite::SqlitePoolOptions, SqlitePool};
 
     use super::{
-        get_channel, get_channel_stream_url, list_recently_watched, mark_channel_watched,
-        set_channel_blocked, set_channel_bookmarked,
+        get_channel, get_channel_stream_url, list_channels_in_group, list_recently_watched,
+        mark_channel_watched, set_channel_blocked, set_channel_bookmarked,
     };
-    use crate::db::migrations;
+    use crate::{cursor::SortMode, db::migrations};
 
     async fn setup_pool() -> SqlitePool {
         let pool = SqlitePoolOptions::new()
@@ -368,7 +386,7 @@ mod tests {
 
     async fn seed_one_channel(pool: &SqlitePool) -> i64 {
         sqlx::query(
-            "INSERT INTO groups (title, logo_url, sort_order, is_bookmarked, blocked_at) VALUES ('Sports', '/group-default.svg', 1, 0, NULL)",
+            "INSERT INTO groups (title, logo_url, sort_order, is_bookmarked, blocked_at) VALUES ('Sports', NULL, 1, 0, NULL)",
         )
         .execute(pool)
         .await
@@ -378,13 +396,17 @@ mod tests {
             INSERT INTO channels (
                 name, group_title, stream_url, logo_url, duration, tvg_id, tvg_name, tvg_chno, tvg_language,
                 tvg_country, tvg_shift, tvg_rec, tvg_url, tvg_extras, watched_at, bookmarked_at, blocked_at
-            ) VALUES ('Sky Sports 1', 'Sports', 'https://example.com/sky1', '/channel-default.svg',
+            ) VALUES ('Sky Sports 1', 'Sports', 'https://example.com/sky1', NULL,
                 -1, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL, NULL)
             "#,
         )
         .execute(pool)
         .await
         .expect("insert channel");
+        sqlx::query("UPDATE groups SET channel_count = 1 WHERE title = 'Sports'")
+            .execute(pool)
+            .await
+            .expect("update group channel count");
         result.last_insert_rowid()
     }
 
@@ -426,6 +448,37 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn list_channels_in_group_returns_rows_when_group_title_matches_groups_pk() {
+        let pool = setup_pool().await;
+        let _id = seed_one_channel(&pool).await;
+
+        for sort in [SortMode::Default, SortMode::Name] {
+            let page = list_channels_in_group(&pool, "Sports", sort, None, 50)
+                .await
+                .expect("list channels in group should succeed");
+            assert_eq!(
+                page.items.len(),
+                1,
+                "regression: UI list uses this query — empty means no row with matching group_title or all blocked"
+            );
+            assert_eq!(page.items[0].name, "Sky Sports 1");
+            assert_eq!(page.items[0].group_title, "Sports");
+        }
+    }
+
+    #[tokio::test]
+    async fn list_channels_in_group_returns_empty_when_no_channel_in_that_group() {
+        let pool = setup_pool().await;
+        let _id = seed_one_channel(&pool).await;
+
+        let page = list_channels_in_group(&pool, "News", SortMode::Default, None, 50)
+            .await
+            .expect("list should succeed");
+        assert!(page.items.is_empty());
+        assert!(page.next_cursor.is_none());
+    }
+
+    #[tokio::test]
     async fn stream_url_and_recently_watched_scope() {
         let pool = setup_pool().await;
         let id = seed_one_channel(&pool).await;
@@ -448,5 +501,36 @@ mod tests {
             .await
             .expect("scoped recent should succeed");
         assert_eq!(scoped_recent.len(), 1);
+    }
+
+    #[tokio::test]
+    async fn set_channel_blocked_keeps_group_channel_count_in_sync() {
+        let pool = setup_pool().await;
+        let id = seed_one_channel(&pool).await;
+
+        let before: i64 = sqlx::query_scalar("SELECT channel_count FROM groups WHERE title = 'Sports'")
+            .fetch_one(&pool)
+            .await
+            .expect("read initial channel_count");
+        assert_eq!(before, 1);
+
+        set_channel_blocked(&pool, id, true)
+            .await
+            .expect("block should succeed");
+        let blocked: i64 = sqlx::query_scalar("SELECT channel_count FROM groups WHERE title = 'Sports'")
+            .fetch_one(&pool)
+            .await
+            .expect("read blocked channel_count");
+        assert_eq!(blocked, 0);
+
+        set_channel_blocked(&pool, id, false)
+            .await
+            .expect("unblock should succeed");
+        let unblocked: i64 =
+            sqlx::query_scalar("SELECT channel_count FROM groups WHERE title = 'Sports'")
+                .fetch_one(&pool)
+                .await
+                .expect("read unblocked channel_count");
+        assert_eq!(unblocked, 1);
     }
 }

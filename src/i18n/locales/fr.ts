@@ -58,6 +58,7 @@ export const fr: LocaleResources = {
     badge: {
       imported: "Importée le {{when}}",
       stats: "{{channels, number}} ch · {{groups, number}} groupes",
+      detailsButton: "Détails de l’import",
     },
   },
 
@@ -99,7 +100,9 @@ export const fr: LocaleResources = {
   groupDetail: {
     home: "Accueil",
     breadcrumbSeparator: "›",
+    actions: "Actions du groupe",
     scopedSearch: "Rechercher dans ce groupe…",
+    favoriteChannels: "Chaînes favorites",
     recentInGroup: "Vues récemment dans ce groupe",
     empty: {
       noChannelsTitle: "Aucune chaîne",
@@ -109,6 +112,7 @@ export const fr: LocaleResources = {
 
   virtualGroups: {
     favoriteChannels: "Chaînes favorites",
+    favoriteGroups: "Groupes favoris",
     recentlyWatched: "Vues récemment",
   },
 
@@ -118,6 +122,8 @@ export const fr: LocaleResources = {
     nothingDescription: "Aucun groupe ni chaîne bloqué.",
     groupsHeading: "Groupes bloqués",
     channelsHeading: "Chaînes bloquées",
+    groupsEmptyWithChannels: "Aucun groupe bloqué. Vous n'avez que des chaînes bloquées.",
+    channelsEmptyWithGroups: "Aucune chaîne bloquée. Vous n'avez que des groupes bloqués.",
     unblock: "Débloquer",
     loadMore: "Charger plus",
   },
@@ -168,6 +174,7 @@ export const fr: LocaleResources = {
 
   sidebar: {
     heading: "Groupes",
+    closeSheet: "Fermer",
   },
 
   contextMenu: {
@@ -187,6 +194,7 @@ export const fr: LocaleResources = {
     importCompleteSkipped_other:
       "{{channels, number}} chaînes et {{groups, number}} groupes importés. {{skipped, number}} entrées ignorées.",
     importCancelled: "Importation annulée.",
+    ipcFailed: "Une erreur est survenue ({{command}}) : {{message}}",
   },
 
   windowTitle: {

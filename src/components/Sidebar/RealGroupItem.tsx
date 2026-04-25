@@ -17,12 +17,15 @@ export function RealGroupItem({ group, style }: { group: Group; style?: React.CS
     <GroupContextMenu group={group}>
       <div
         data-testid={`sidebar-group-${group.title}`}
-        className={cn("flex items-center gap-0.5 ps-0", active === group.title && "bg-muted/80")}
+        className={cn(
+          "flex w-full min-w-0 items-center gap-0.5 rounded-md pe-2 ps-0 transition-colors hover:bg-muted",
+          active === group.title && "bg-muted/80",
+        )}
         style={style}
       >
         <button
           type="button"
-          className="min-w-0 flex-1 truncate rounded-md px-2 py-1.5 text-start text-sm hover:bg-muted"
+          className="min-w-0 flex-1 truncate px-2 py-1.5 text-start text-sm hover:bg-transparent"
           onClick={() => {
             void useGroupStore
               .getState()
@@ -38,6 +41,7 @@ export function RealGroupItem({ group, style }: { group: Group; style?: React.CS
           type="button"
           size="icon-xs"
           variant="ghost"
+          className="shrink-0 hover:bg-transparent dark:hover:bg-transparent"
           aria-label={t("card.bookmarkGroup")}
           onClick={(e) => {
             e.stopPropagation();

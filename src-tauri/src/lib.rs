@@ -6,6 +6,7 @@ mod importer;
 mod parser;
 mod state;
 mod types;
+mod validation;
 
 use cursor::SortMode;
 use error::NeptuneError;
@@ -15,6 +16,10 @@ use state::{AppState, ImportHandle, ImportPhase, ImportProgress};
 use tauri::Manager;
 use tauri_plugin_opener::OpenerExt;
 use types::{Channel, ChannelPage, GroupDetail, GroupPage, PlaylistMeta, SearchResults};
+use validation::{
+    resolve_limit, validate_id, validate_local_path, validate_optional_cursor,
+    validate_optional_title, validate_query, validate_remote_url, validate_title,
+};
 
 #[tauri::command]
 async fn is_playlist_loaded(state: tauri::State<'_, AppState>) -> Result<bool, NeptuneError> {
@@ -143,6 +148,7 @@ async fn import_playlist_local(
     state: tauri::State<'_, AppState>,
     path: String,
 ) -> Result<(), NeptuneError> {
+    let path = validate_local_path(&path)?.to_owned();
     start_import(
         app,
         state,
@@ -159,11 +165,7 @@ async fn import_playlist_remote(
     state: tauri::State<'_, AppState>,
     url: String,
 ) -> Result<(), NeptuneError> {
-    if !(url.starts_with("http://") || url.starts_with("https://")) {
-        return Err(NeptuneError::InvalidRequest(
-            "remote import only supports http/https".to_owned(),
-        ));
-    }
+    let url = validate_remote_url(&url)?.to_owned();
     start_import(
         app,
         state,
@@ -208,7 +210,9 @@ async fn list_groups(
     cursor: Option<String>,
     limit: Option<i64>,
 ) -> Result<GroupPage, NeptuneError> {
-    db::groups::list_groups(&state.pool, sort, cursor, limit.unwrap_or(50)).await
+    let cursor = validate_optional_cursor(cursor)?;
+    let limit = resolve_limit(limit, 50)?;
+    db::groups::list_groups(&state.pool, sort, cursor, limit).await
 }
 
 #[tauri::command]
@@ -218,7 +222,9 @@ async fn list_bookmarked_groups(
     cursor: Option<String>,
     limit: Option<i64>,
 ) -> Result<GroupPage, NeptuneError> {
-    db::groups::list_bookmarked_groups(&state.pool, sort, cursor, limit.unwrap_or(50)).await
+    let cursor = validate_optional_cursor(cursor)?;
+    let limit = resolve_limit(limit, 50)?;
+    db::groups::list_bookmarked_groups(&state.pool, sort, cursor, limit).await
 }
 
 #[tauri::command]
@@ -226,7 +232,8 @@ async fn get_group(
     state: tauri::State<'_, AppState>,
     title: String,
 ) -> Result<Option<GroupDetail>, NeptuneError> {
-    db::groups::get_group(&state.pool, &title).await
+    let title = validate_title(&title, "title")?;
+    db::groups::get_group(&state.pool, title).await
 }
 
 #[tauri::command]
@@ -235,7 +242,8 @@ async fn set_group_bookmarked(
     title: String,
     value: bool,
 ) -> Result<(), NeptuneError> {
-    db::groups::set_group_bookmarked(&state.pool, &title, value).await
+    let title = validate_title(&title, "title")?;
+    db::groups::set_group_bookmarked(&state.pool, title, value).await
 }
 
 #[tauri::command]
@@ -244,7 +252,8 @@ async fn set_group_blocked(
     title: String,
     value: bool,
 ) -> Result<(), NeptuneError> {
-    db::groups::set_group_blocked(&state.pool, &title, value).await
+    let title = validate_title(&title, "title")?;
+    db::groups::set_group_blocked(&state.pool, title, value).await
 }
 
 #[tauri::command]
@@ -255,14 +264,10 @@ async fn list_channels_in_group(
     cursor: Option<String>,
     limit: Option<i64>,
 ) -> Result<ChannelPage, NeptuneError> {
-    db::channels::list_channels_in_group(
-        &state.pool,
-        &group_title,
-        sort,
-        cursor,
-        limit.unwrap_or(100),
-    )
-    .await
+    let group_title = validate_title(&group_title, "groupTitle")?;
+    let cursor = validate_optional_cursor(cursor)?;
+    let limit = resolve_limit(limit, 100)?;
+    db::channels::list_channels_in_group(&state.pool, group_title, sort, cursor, limit).await
 }
 
 #[tauri::command]
@@ -271,7 +276,9 @@ async fn list_recently_watched(
     group_title: Option<String>,
     limit: Option<i64>,
 ) -> Result<Vec<Channel>, NeptuneError> {
-    db::channels::list_recently_watched(&state.pool, group_title, limit.unwrap_or(50)).await
+    let group_title = validate_optional_title(group_title, "groupTitle")?;
+    let limit = resolve_limit(limit, 50)?;
+    db::channels::list_recently_watched(&state.pool, group_title, limit).await
 }
 
 #[tauri::command]
@@ -281,7 +288,9 @@ async fn list_favorite_channels(
     cursor: Option<String>,
     limit: Option<i64>,
 ) -> Result<ChannelPage, NeptuneError> {
-    db::channels::list_favorite_channels(&state.pool, sort, cursor, limit.unwrap_or(100)).await
+    let cursor = validate_optional_cursor(cursor)?;
+    let limit = resolve_limit(limit, 100)?;
+    db::channels::list_favorite_channels(&state.pool, sort, cursor, limit).await
 }
 
 #[tauri::command]
@@ -289,6 +298,7 @@ async fn get_channel(
     state: tauri::State<'_, AppState>,
     id: i64,
 ) -> Result<Option<Channel>, NeptuneError> {
+    let id = validate_id(id, "id")?;
     db::channels::get_channel(&state.pool, id).await
 }
 
@@ -298,6 +308,7 @@ async fn set_channel_bookmarked(
     id: i64,
     value: bool,
 ) -> Result<(), NeptuneError> {
+    let id = validate_id(id, "id")?;
     db::channels::set_channel_bookmarked(&state.pool, id, value).await
 }
 
@@ -307,6 +318,7 @@ async fn set_channel_blocked(
     id: i64,
     value: bool,
 ) -> Result<(), NeptuneError> {
+    let id = validate_id(id, "id")?;
     db::channels::set_channel_blocked(&state.pool, id, value).await
 }
 
@@ -317,13 +329,10 @@ async fn search_global(
     group_limit: Option<i64>,
     channel_limit: Option<i64>,
 ) -> Result<SearchResults, NeptuneError> {
-    db::search::search_global(
-        &state.pool,
-        &query,
-        group_limit.unwrap_or(5),
-        channel_limit.unwrap_or(20),
-    )
-    .await
+    let query = validate_query(&query)?;
+    let group_limit = resolve_limit(group_limit, 5)?;
+    let channel_limit = resolve_limit(channel_limit, 20)?;
+    db::search::search_global(&state.pool, query, group_limit, channel_limit).await
 }
 
 #[tauri::command]
@@ -334,14 +343,11 @@ async fn search_channels_in_group(
     cursor: Option<String>,
     limit: Option<i64>,
 ) -> Result<ChannelPage, NeptuneError> {
-    db::search::search_channels_in_group(
-        &state.pool,
-        &group_title,
-        &query,
-        cursor,
-        limit.unwrap_or(100),
-    )
-    .await
+    let group_title = validate_title(&group_title, "groupTitle")?;
+    let query = validate_query(&query)?;
+    let cursor = validate_optional_cursor(cursor)?;
+    let limit = resolve_limit(limit, 100)?;
+    db::search::search_channels_in_group(&state.pool, group_title, query, cursor, limit).await
 }
 
 #[tauri::command]
@@ -350,7 +356,9 @@ async fn list_blocked_groups(
     cursor: Option<String>,
     limit: Option<i64>,
 ) -> Result<GroupPage, NeptuneError> {
-    db::groups::list_blocked_groups(&state.pool, cursor, limit.unwrap_or(50)).await
+    let cursor = validate_optional_cursor(cursor)?;
+    let limit = resolve_limit(limit, 50)?;
+    db::groups::list_blocked_groups(&state.pool, cursor, limit).await
 }
 
 #[tauri::command]
@@ -359,7 +367,9 @@ async fn list_blocked_channels(
     cursor: Option<String>,
     limit: Option<i64>,
 ) -> Result<ChannelPage, NeptuneError> {
-    db::channels::list_blocked_channels(&state.pool, cursor, limit.unwrap_or(100)).await
+    let cursor = validate_optional_cursor(cursor)?;
+    let limit = resolve_limit(limit, 100)?;
+    db::channels::list_blocked_channels(&state.pool, cursor, limit).await
 }
 
 #[tauri::command]
@@ -368,6 +378,7 @@ async fn play_channel(
     state: tauri::State<'_, AppState>,
     id: i64,
 ) -> Result<(), NeptuneError> {
+    let id = validate_id(id, "id")?;
     let stream_url = db::channels::get_channel_stream_url(&state.pool, id).await?;
     app.opener()
         .open_url(stream_url.as_str(), None::<&str>)

@@ -62,8 +62,6 @@ const GROUP_TITLES: readonly string[] = [
 ] as const;
 
 const CHANNEL_TARGET = 5_000;
-const LOGO = "/group-default.svg";
-const CH_LOGO = "/channel-default.svg";
 
 function mulberry32(seed: number): () => number {
   let t = seed >>> 0;
@@ -104,10 +102,11 @@ export function seedMockData(seed: number = 42): MockState {
     const title = GROUP_TITLES[i]!;
     groups.set(title, {
       title,
-      logoUrl: LOGO,
+      logoUrl: null,
       sortOrder: i,
       isBookmarked: 0,
       blockedAt: null,
+      channelCount: 0,
     });
   }
 
@@ -135,7 +134,7 @@ export function seedMockData(seed: number = 42): MockState {
       name: `Channel ${id} — ${groupTitle}`,
       groupTitle,
       streamUrl: `https://stream.example.test/ch/${id}`,
-      logoUrl: CH_LOGO,
+      logoUrl: null,
       duration,
       tvgId: rng() < 0.4 ? `epg-${id}` : null,
       tvgName: rng() < 0.5 ? `Provider ${id}` : null,
@@ -151,6 +150,10 @@ export function seedMockData(seed: number = 42): MockState {
       blockedAt: null,
     };
     channels.set(id, ch);
+    const group = groups.get(groupTitle);
+    if (group) {
+      group.channelCount += 1;
+    }
   }
 
   const skipped = 7;
