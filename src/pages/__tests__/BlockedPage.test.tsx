@@ -1,0 +1,47 @@
+import { render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { beforeEach, describe, expect, it } from "vitest";
+
+import { BlockedPage } from "@/pages/BlockedPage";
+import { mockAdapter, resetMockAdapterStateForTests } from "@/lib/adapter";
+import { seedMockData } from "@/lib/mockFixtures";
+import { useGroupStore } from "@/store/groupStore";
+import { usePlayerStore } from "@/store/playerStore";
+import { usePlaylistStore } from "@/store/playlistStore";
+import { resetAllStoresAndMock } from "@/store/__tests__/testSetup";
+
+async function boot() {
+  resetAllStoresAndMock();
+  resetMockAdapterStateForTests(seedMockData(42));
+  await usePlaylistStore.getState().init();
+  await useGroupStore.getState().loadFirstPage();
+  await usePlayerStore.getState().init();
+}
+
+describe("BlockedPage", () => {
+  beforeEach(async () => {
+    await boot();
+    const t = useGroupStore.getState().items[0]!.title;
+    await mockAdapter.setGroupBlocked(t, true);
+    await usePlayerStore.getState().refreshBlocked();
+  });
+
+  it("unblock calls adapter", async () => {
+    const user = userEvent.setup();
+    render(<BlockedPage />);
+    await waitFor(() => {
+      expect(screen.getByText(/blocked groups/i)).toBeInTheDocument();
+    });
+    const title = usePlayerStore.getState().blockedGroups[0]!.title;
+    await waitFor(() => {
+      expect(screen.getByText(title)).toBeInTheDocument();
+    });
+    const un = screen.getAllByRole("button", { name: /unblock/i })[0]!;
+    await user.click(un);
+    await waitFor(() => {
+      expect(
+        usePlayerStore.getState().blockedGroups.find((g) => g.title === title),
+      ).toBeUndefined();
+    });
+  });
+});

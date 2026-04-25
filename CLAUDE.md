@@ -9,7 +9,7 @@ Technical reference for Claude. Product and behaviour spec is in `FEATURES.md`.
 ## Tech Stack
 
 | Layer          | Technology                                                                 |
-|----------------|----------------------------------------------------------------------------|
+| -------------- | -------------------------------------------------------------------------- |
 | Desktop        | Tauri 2.x                                                                  |
 | Backend        | Rust (stable, 2021 edition)                                                |
 | Database       | SQLite via `tauri-plugin-sql` (sqlx)                                       |
@@ -30,18 +30,44 @@ Technical reference for Claude. Product and behaviour spec is in `FEATURES.md`.
 
 ```
 src/
-  components/ui/        # shadcn output — never hand-edit
-  components/           # custom components (PascalCase.tsx)
-  hooks/                # one hook per file (camelCase.ts)
-  pages/                # HeroPage.tsx · BrowserPage.tsx · BlockedPage.tsx
-  store/                # playlistStore · groupStore · channelStore · searchStore · playerStore
+  components/ui/        # shadcn output — never hand-edit (includes sheet.tsx)
+  components/
+    AppShell.tsx        # route switch (Hero / Browser / Blocked) + Toaster + modals + hooks
+    ThemeProvider.tsx   # next-themes wrapper (mount in main.tsx)
+    ThemeSync.tsx       # settingsStore.themeMode → next-themes
+    LocaleSync.tsx      # settingsStore.locale → i18next.changeLanguage + html lang/dir
+    ResponsiveSidebarSheet.tsx  # tablet left / mobile bottom Sheet for Sidebar when &lt;lg
+    Header/             # GlobalSearchInput · GlobalSearchResults · SortToggle · ThemeToggle · PlaylistInfoBadge · HeaderMenu · ImportProgressBar
+    Sidebar/            # VirtualGroupItem · RealGroupItem
+    Card/               # ChannelCard · GroupCard · CardImage · ChannelContextMenu · GroupContextMenu
+    List/               # VirtualGrid · VirtualHorizontalRow · AZIndexBar
+    Modal/              # ShortcutsModal · RemoteUrlDialog · ConfirmDialog
+    Notifications/     # NotificationsBridge (playlist → sonner)
+    EmptyState.tsx · SectionHeader.tsx · Header.tsx · Sidebar.tsx
+  hooks/
+    useWindowTitle · useKeyboardShortcuts · useIsMobile · useNotifications · useImportLifecycle
+    useToastBridge · useSearchInputRef · useImageFallback · useVirtualGrid · useFocusedItem
+  pages/
+    HeroPage.tsx · BrowserPage.tsx · BlockedPage.tsx
+    Browser/HomeView.tsx · Browser/GroupDetailView.tsx
+  store/                # uiStore · settingsStore · playlistStore · groupStore · channelStore · searchStore · playerStore · index.ts (initStores)
   lib/
-    types.ts            # TS interfaces for all Tauri IPC response types
+    types.ts            # TS interfaces for all Tauri IPC response types + NeptuneClientError
+    neptuneAdapter.ts   # NeptuneAdapter interface + Unsubscribe
     schemas/            # Zod schemas (one file per domain)
-    adapter.ts          # selects tauriAdapter or mockAdapter at runtime
-    tauriAdapter.ts     # real: invoke() + Tauri event listeners
-    mockAdapter.ts      # fake data for `yarn dev` (no Rust backend needed)
+    adapter.ts          # exports `adapter` — tauri vs mock at runtime
+    tauriAdapter.ts     # real: invoke() + event.listen (snake_case invoke payloads)
+    mockAdapter.ts      # in-memory backend for `yarn dev`, full commands + import events
+    mockFixtures.ts     # seedMockData() — ~50 groups / ~5k channels
+    cursorCodec.ts      # base64url JSON cursors (parity with Rust)
+    __tests__/           # Vitest adapter contract
     utils.ts            # cn() and shared helpers
+  i18n/
+    index.ts            # i18next bootstrap + resolveLanguage / isRtl / formatNumber / formatDateTime
+    i18next.d.ts        # CustomTypeOptions augmentation (returnNull: false)
+    locales/en.ts       # source of truth for keys/strings (`as const` widened to `EnglishResources`)
+    locales/fr.ts       # `LocaleResources` — partial; missing keys fall back to English
+    locales/ar.ts       # RTL — flips `<html dir="rtl">` via `RTL_LANGUAGES`
   main.css              # Tailwind + shadcn theme + CSS variables
 src-tauri/src/
   db/                   # all SQLite logic
@@ -60,11 +86,30 @@ public/
 ```bash
 yarn tauri dev          # full app (Tauri + React)
 yarn dev                # frontend only — mock adapter active
+yarn test               # Vitest (adapter, stores, components/pages integration)
+yarn typecheck          # `tsc --noEmit`
+yarn lint               # ESLint (flat config; `src/components/ui/` ignored)
+yarn lint:fix           # ESLint --fix
 yarn tauri build        # production bundle
 yarn shadcn add <name>  # install a shadcn component
 ```
 
+Rust (from `src-tauri/`):
+
+```bash
+cargo clippy --all-targets -- -D warnings
+cargo fmt --check
+cargo test
+```
+
 Add Rust dependencies by editing `src-tauri/Cargo.toml` directly — never use `cargo add`.
+
+### Adapter & Mock
+
+- **`@/lib/adapter`** exports a single `adapter` implementing `NeptuneAdapter` (see `neptuneAdapter.ts`). At runtime, `globalThis.window.__TAURI_INTERNALS__` selects `tauriAdapter` (real `invoke` + `event.listen`); otherwise `mockAdapter` (deterministic `seedMockData(42)` after a simulated import).
+- **Typing:** DTOs and errors live in `lib/types.ts` (mirrors `src-tauri` JSON). User-facing inputs are validated in `lib/schemas/` (Zod) before store actions call the adapter in Phase 3.
+- **Swapping mock data in dev:** `resetMockAdapterStateForTests` / `seedMockData` are exported from `mockFixtures` / `mockAdapter` for tests; the mock singleton resets on `wipe_playlist` and before each import.
+- Do not call `invoke()` from components — only from `tauriAdapter.ts` (or the mock).
 
 ---
 
@@ -75,20 +120,23 @@ Add Rust dependencies by editing `src-tauri/Cargo.toml` directly — never use `
 **Components never call `invoke()` directly.** All IPC goes through Zustand store actions → `adapter.ts`.
 
 ```ts
-// adapter.ts — runtime selection
-const isTauri = typeof window !== 'undefined' && '__TAURI_INTERNALS__' in window;
-export const adapter = isTauri ? tauriAdapter : mockAdapter;
+import { adapter } from "@/lib/adapter";
+// `adapter` is a `NeptuneAdapter` (tauri or mock, see `adapter.ts`)
 ```
 
 Store scope:
 
-| Store           | Responsibility                                                                                |
-|-----------------|-----------------------------------------------------------------------------------------------|
-| `playlistStore` | Import flow, progress, cancel, wipe, error state                                              |
-| `groupStore`    | Group list, active selection                                                                  |
-| `channelStore`  | Channel list, pagination cursor, sort mode                                                    |
-| `searchStore`   | Global query, two-section results `{ groups, channels }`, debounce timer, scoped group filter |
-| `playerStore`   | Recently watched, bookmarks, blocked, open channel                                            |
+| Store           | Responsibility                                                                                                                                                                            |
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `settingsStore` | App-wide preferences — **`sortMode` (Default / Name)**, **`themeMode` (light / dark / system)**, and **`locale` (en / fr / ar / system)**, persisted to `localStorage`                    |
+| `playlistStore` | Import flow, progress, toasts/notification queue, cancel, wipe, error state, shortcuts modal flag                                                                                         |
+| `groupStore`    | Group list, active selection, bookmark/block (groups)                                                                                                                                     |
+| `channelStore`  | Channel list in selected group, pagination cursor, bookmark/block (channels)                                                                                                              |
+| `searchStore`   | Global + scoped search query, debounced (150ms) results, search-focus token for Phase 4                                                                                                   |
+| `playerStore`   | Recently watched, `recentInGroup` (detail rail), favourites, blocked lists, `openChannel`, `loadRecentInGroup`, unblock helpers                                                           |
+| `uiStore`       | Ephemeral UI: blocked page flag, confirm dialog payload, responsive **sidebar sheet** open state, keyboard focus (`sidebar` / `main`), no `react-router` — route is derived in `AppShell` |
+
+Each store exposes `__reset*StoreForTests()` (dev/test only) for Vitest. App bootstrap calls `initStores()` from `src/store/index.ts` (after `playlistStore.init()` wiring import listeners, preload groups/player when a playlist exists).
 
 ### Data Flow
 
@@ -120,6 +168,7 @@ M3U8 file / URL
   channels and channels whose parent group is blocked (`c.blocked_at IS NULL AND g.blocked_at IS NULL`).
 - **Instant search:** global search fires two FTS5 queries in parallel on every debounced keystroke (150 ms).
   Results are ranked by `bm25()` and capped to keep rendering fast:
+
   ```sql
   -- Groups section
   SELECT g.* FROM groups g
@@ -136,27 +185,29 @@ M3U8 file / URL
     AND g.blocked_at IS NULL
   ORDER BY bm25(channels_fts) LIMIT 20;
   ```
+
   Scoped search (Group Detail View) reuses the channels query with an additional `AND c.group_title = ?`,
   which is covered by `idx_channels_group_blocked_bookmarked_name`.
+
 - **Import cancel / error:** roll back all inserts; leave DB empty; emit error event to frontend.
 - **Indexes:** created in the same migration as their table.
 
   `channels`:
 
-  | Index | Columns | Serves |
-  |---|---|---|
-  | `idx_channels_group_blocked_bookmarked_id` | `(group_title, blocked_at, bookmarked_at DESC, id)` | Channel list in group — default sort, bookmarked-first, cursor pagination, blocked exclusion; FTS scoped post-filter |
-  | `idx_channels_group_blocked_bookmarked_name` | `(group_title, blocked_at, bookmarked_at DESC, name)` | Channel list in group — name sort, bookmarked-first, scoped search post-filter |
-  | `idx_channels_blocked_bookmarked` | `(blocked_at, bookmarked_at)` | Favourite Channels virtual group (`WHERE bookmarked_at IS NOT NULL AND blocked_at IS NULL`, plus parent group not blocked) |
-  | `idx_channels_blocked_watched` | `(blocked_at, watched_at)` | Recently Watched virtual group (`WHERE watched_at IS NOT NULL AND blocked_at IS NULL`, plus parent group not blocked, `ORDER BY watched_at DESC LIMIT 50`) |
-  | `idx_channels_tvg_chno` | `(tvg_chno)` | Channel-number lookup |
+  | Index                                        | Columns                                               | Serves                                                                                                                                                     |
+  | -------------------------------------------- | ----------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+  | `idx_channels_group_blocked_bookmarked_id`   | `(group_title, blocked_at, bookmarked_at DESC, id)`   | Channel list in group — default sort, bookmarked-first, cursor pagination, blocked exclusion; FTS scoped post-filter                                       |
+  | `idx_channels_group_blocked_bookmarked_name` | `(group_title, blocked_at, bookmarked_at DESC, name)` | Channel list in group — name sort, bookmarked-first, scoped search post-filter                                                                             |
+  | `idx_channels_blocked_bookmarked`            | `(blocked_at, bookmarked_at)`                         | Favourite Channels virtual group (`WHERE bookmarked_at IS NOT NULL AND blocked_at IS NULL`, plus parent group not blocked)                                 |
+  | `idx_channels_blocked_watched`               | `(blocked_at, watched_at)`                            | Recently Watched virtual group (`WHERE watched_at IS NOT NULL AND blocked_at IS NULL`, plus parent group not blocked, `ORDER BY watched_at DESC LIMIT 50`) |
+  | `idx_channels_tvg_chno`                      | `(tvg_chno)`                                          | Channel-number lookup                                                                                                                                      |
 
   `groups`:
 
-  | Index | Columns | Serves |
-  |---|---|---|
-  | `idx_groups_blocked_bookmarked_sort` | `(blocked_at, is_bookmarked DESC, sort_order)` | Group list — default sort, bookmarked-first, blocked exclusion |
-  | `idx_groups_blocked_bookmarked_title` | `(blocked_at, is_bookmarked DESC, title)` | Group list — name sort, bookmarked-first; global group search post-filter |
+  | Index                                 | Columns                                        | Serves                                                                    |
+  | ------------------------------------- | ---------------------------------------------- | ------------------------------------------------------------------------- |
+  | `idx_groups_blocked_bookmarked_sort`  | `(blocked_at, is_bookmarked DESC, sort_order)` | Group list — default sort, bookmarked-first, blocked exclusion            |
+  | `idx_groups_blocked_bookmarked_title` | `(blocked_at, is_bookmarked DESC, title)`      | Group list — name sort, bookmarked-first; global group search post-filter |
 
 ### Parser
 
@@ -186,18 +237,36 @@ mapping is in `FEATURES.md` (Data Model → Channels).
 ## Frontend Conventions
 
 - **TypeScript strict** — no `any`; path alias `@/` → `src/`.
-- **Zustand** — one store per domain; `adapter.ts` imported only inside store actions; sort preference persisted to
-  `localStorage`.
+- **Zustand** — one store per domain; `adapter.ts` imported only inside store actions; **`sortMode`** and **`themeMode`**
+  live in **`settingsStore`**, not `channelStore` (see store table). Sort and theme preferences are persisted there.
+- **Theming** — `next-themes` applies `light` / `dark` / `system` via `class` on `<html>`. **`settingsStore.themeMode` is the
+  source of truth**; `<ThemeSync />` (inside `<ThemeProvider>`) calls `setTheme` when the store changes. A small inline
+  script in `index.html` reads the same zustand persist key to set `.dark`, `lang`, and `dir` before first paint (avoid FOUC).
+- **i18n** — `react-i18next` 26.x. English is the source of truth (`src/i18n/locales/en.ts`); `fr.ts` and `ar.ts` use
+  `LocaleResources` (deep-partial of English) so any missing key falls back to English. **`settingsStore.locale`**
+  (`'en' | 'fr' | 'ar' | 'system'`) is persisted; `<LocaleSync />` syncs it to `i18next.changeLanguage()` and updates
+  `<html lang dir>`. **Components** call `useTranslation()` and `t("namespace.key")`; **non-React code** (`useWindowTitle`,
+  stores) imports `i18n` from `@/i18n` and calls `i18n.t(...)`. Numbers/dates use `formatNumber` / `formatDateTime` from
+  `@/i18n`. Zod schemas store i18n **keys** as `message`; consumers translate at display time. Toast notifications carry
+  `messageKey` + `messageVars` (resolved by `useToastBridge`) so language switches stay live.
+- **Responsive shell** — `lg+`: fixed-width sidebar + main. `<lg`: groups list in a shadcn `Sheet` (left on tablet,
+  bottom on mobile) toggled from the header hamburger; **A–Z index bar is hidden on mobile** (`useIsMobile`).
+- **Store bootstrap** — `initStores()` in `src/store/index.ts` should run before React render (`main.tsx`); tests may call
+  it after `__reset*StoreForTests()` to get a clean IPC surface.
+- **Routing** — no `react-router`: `AppShell` picks `HeroPage` / `BrowserPage` / `BlockedPage` from `hasPlaylist` + `uiStore.blockedPageOpen`.
+- **Toasts** — `playlistStore.notifications` is mirrored to Sonner via `useToastBridge` / `NotificationsBridge`.
 - **Zod** — all user inputs validated before any store action; schemas in `src/lib/schemas/`.
 - **shadcn/ui first** — always `yarn shadcn add <component>` before building anything custom; `src/components/ui/` is
   shadcn-only output.
 - **No `useEffect` for data fetching** — use Zustand actions.
 - **Infinite scroll** — TanStack Virtual bottom sentinel; no pagination buttons.
-- **A-Z index bar** — when Name sort is active, long lists expose a right-edge letter jump control.
+- **A–Z index bar** — when Name sort is active, long lists expose a right-edge letter jump control (hidden on narrow / mobile viewports).
 - **Images** — `loading="lazy"` + `onError` fallback to default asset on every `<img>`.
-- **Dark mode** — `.dark` on `<html>` by default; no inline `style={{}}` except virtualized row positions.
-- **RTL** — do not hard-code `dir="ltr"`; shadcn `dir` prop propagates from root.
-- **i18n** — English string literals only for v1; no i18n library.
+- **Theme** — Light / Dark / System via `next-themes` + persisted `themeMode`; no inline `style={{}}` except virtualized row positions.
+- **RTL** — do not hard-code `dir="ltr"`; shadcn `dir` prop propagates from root. Use logical Tailwind utilities
+  (`ms-*`/`me-*`/`ps-*`/`pe-*`/`start-*`/`end-*`/`text-start`/`text-end`) instead of physical `left/right`. For
+  directional icons (back arrow, etc.) add `rtl:rotate-180`. Arabic flips automatically because `<LocaleSync />` writes
+  `dir="rtl"` on `<html>` when the active locale is in `RTL_LANGUAGES` (`@/i18n`).
 - **Window title** — updated via `document.title` or React component if possible in each store action that changes app
   state.
 
@@ -205,7 +274,7 @@ mapping is in `FEATURES.md` (Data Model → Channels).
 
 ## Rust Conventions
 
-- `cargo clippy` must pass before committing.
+- `cargo clippy --all-targets -- -D warnings` and `cargo fmt --check` must pass before committing (`rust-toolchain.toml` pins stable + clippy + rustfmt).
 - `thiserror` for errors — not `anyhow` in library code.
 - DB logic in `src-tauri/src/db/`. Parser in `src-tauri/src/parser/`.
 - Command handlers in `lib.rs` are thin delegators — no business logic inline.
@@ -234,7 +303,7 @@ mapping is in `FEATURES.md` (Data Model → Channels).
 GitHub Actions + `tauri-action`. Trigger: `v*.*.*` tag. Produces draft releases:
 
 | Platform | Artifacts                                    |
-|----------|----------------------------------------------|
+| -------- | -------------------------------------------- |
 | Windows  | `.msi`, `.exe`                               |
 | macOS    | Universal `.dmg` / `.app` (x86_64 + aarch64) |
 | Linux    | `.deb`, `AppImage`                           |

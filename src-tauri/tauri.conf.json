@@ -1,6 +1,6 @@
 {
   "$schema": "https://schema.tauri.app/config/2",
-  "productName": "neptune-tv",
+  "productName": "Neptune TV",
   "version": "0.1.0",
   "identifier": "io.nask.neptune-tv",
   "build": {
@@ -14,7 +14,9 @@
       {
         "title": "Neptune TV - Blazing-Fast IPTV M3U8 Player",
         "width": 800,
-        "height": 600
+        "height": 600,
+        "minWidth": 360,
+        "minHeight": 560
       }
     ],
     "security": {
@@ -24,6 +26,11 @@
   "bundle": {
     "active": true,
     "targets": "all",
+    "publisher": "Mehdi Nassim KHODJA",
+    "copyright": "Copyright © 2026 Mehdi Nassim KHODJA",
+    "category": "Entertainment",
+    "shortDescription": "Blazing-Fast IPTV M3U8 Player",
+    "longDescription": "Cross-platform desktop IPTV browser. Opens large M3U8 playlists, organises channels into groups, and hands stream URLs to the OS default player.",
     "icon": [
       "icons/32x32.png",
       "icons/192x192.png",

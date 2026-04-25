@@ -21,7 +21,7 @@ video.**
 ### Groups
 
 | Field           | Notes                                                                                                                               |
-|-----------------|-------------------------------------------------------------------------------------------------------------------------------------|
+| --------------- | ----------------------------------------------------------------------------------------------------------------------------------- |
 | `title`         | Primary key (unique). Source: `group-title` attribute.                                                                              |
 | `logo_url`      | Defaults to `/group-default.svg`. Stored for future UI customisation.                                                               |
 | `sort_order`    | Insertion order in the M3U8 file — used for Default sort.                                                                           |
@@ -33,7 +33,7 @@ Channels with no `group-title` are placed in an auto-created `"Uncategorized"` g
 ### Channels
 
 | Field           | Notes                                                                                                                                   |
-|-----------------|-----------------------------------------------------------------------------------------------------------------------------------------|
+| --------------- | --------------------------------------------------------------------------------------------------------------------------------------- |
 | `id`            | Auto-increment PK — also used as insertion-order sort key for Default sort.                                                             |
 | `name`          | Display name — text after the last `,` on the `#EXTINF` line (non-unique).                                                              |
 | `group_title`   | FK → `groups.title`. `"Uncategorized"` when `group-title` is absent.                                                                    |
@@ -59,21 +59,21 @@ Default assets live in `public/` and are referenced as `/group-default.svg` and 
 
 ## Pages & Navigation
 
-### Page 1 — Hero *(no playlist loaded)*
+### Page 1 — Hero _(no playlist loaded)_
 
 Full-screen landing shown when the DB is empty.
 
 - App logo + tagline.
 - Two side-by-side CTAs:
-    - **Open Local File** — native OS file picker (`.m3u`, `.m3u8`).
-    - **Open Remote URL** — text input (Zod-validated HTTP/HTTPS URL) + confirm button.
+  - **Open Local File** — native OS file picker (`.m3u`, `.m3u8`).
+  - **Open Remote URL** — text input (Zod-validated HTTP/HTTPS URL) + confirm button.
 
-### Page 2 — Main Browser *(playlist loaded)*
+### Page 2 — Main Browser _(playlist loaded)_
 
 **Header** (always visible):
 
 | Element       | Behaviour                                                                                                                                |
-|---------------|------------------------------------------------------------------------------------------------------------------------------------------|
+| ------------- | ---------------------------------------------------------------------------------------------------------------------------------------- |
 | Logo / Home   | Navigates to Home View; clears group selection.                                                                                          |
 | Global search | Instant search across groups + channels. Results appear as the user types (debounced 150 ms), displayed in two sections below the input. |
 | Sort toggle   | Switches between **Default** and **Name**.                                                                                               |
@@ -89,16 +89,16 @@ Full-screen landing shown when the DB is empty.
 
 **Content Area** (right):
 
-*Home View* — shown when no group is selected:
+_Home View_ — shown when no group is selected:
 
 | Section           | Content                                               |
-|-------------------|-------------------------------------------------------|
+| ----------------- | ----------------------------------------------------- |
 | Favorite Channels | Horizontal scrollable card row (up to 20 · "See all") |
 | Recently Watched  | Horizontal scrollable card row (up to 20 · "See all") |
 | Favorite Groups   | Card grid of bookmarked groups                        |
 | All Groups        | Card grid — bookmarked first, then sort order         |
 
-*Group Detail View* — shown when a group is selected:
+_Group Detail View_ — shown when a group is selected:
 
 - Breadcrumb: `Home › Group Name` + back arrow.
 - Scoped filter input — searches channel names within this group only.
@@ -122,7 +122,7 @@ restores all its channels.
 Two modes toggled from the header, applied everywhere:
 
 | Mode        | Groups                          | Channels                        |
-|-------------|---------------------------------|---------------------------------|
+| ----------- | ------------------------------- | ------------------------------- |
 | **Default** | `sort_order ASC`                | `id ASC` (insertion order)      |
 | **Name**    | Alphabetical (case-insensitive) | Alphabetical (case-insensitive) |
 
@@ -140,7 +140,7 @@ section.
   instantly as the user types (debounced 150 ms) in two labelled sections, rendered below the search input:
 
 | Section      | Content                | Ranking                 |
-|--------------|------------------------|-------------------------|
+| ------------ | ---------------------- | ----------------------- |
 | **Groups**   | Matching group titles  | FTS5 relevance (`bm25`) |
 | **Channels** | Matching channel names | FTS5 relevance (`bm25`) |
 
@@ -155,7 +155,7 @@ section.
 ### Playlist Management
 
 | Action                  | Behaviour                                                                                    |
-|-------------------------|----------------------------------------------------------------------------------------------|
+| ----------------------- | -------------------------------------------------------------------------------------------- |
 | Open Local / Remote     | Streams line-by-line into the Rust parser — never fully loaded into memory.                  |
 | Import progress         | Live progress bar: `"Importing… 45,210 channels"` updated every 10 000 rows.                 |
 | Import cancel           | Cancel button aborts the stream mid-import. DB is rolled back to empty. App returns to Hero. |
@@ -167,7 +167,7 @@ section.
 ### Channel Actions
 
 | Action   | Trigger                                                                   |
-|----------|---------------------------------------------------------------------------|
+| -------- | ------------------------------------------------------------------------- |
 | Play     | Primary click — opens `stream_url` in the OS default player.              |
 | Bookmark | Star icon on card — optimistic toggle.                                    |
 | Block    | Context menu — channel hidden from all listings; visible on Blocked page. |
@@ -176,7 +176,7 @@ section.
 ### Group Actions
 
 | Action   | Trigger                                                                             |
-|----------|-------------------------------------------------------------------------------------|
+| -------- | ----------------------------------------------------------------------------------- |
 | Bookmark | Star icon on group card — group floats to top.                                      |
 | Block    | Context menu — group + all its channels hidden everywhere; visible on Blocked page. |
 
@@ -195,39 +195,42 @@ section.
 
 Every section and page displays contextual empty-state copy when it has no content. Examples:
 
-- Favorites empty → *"No bookmarks yet — click ★ on any channel."*
-- Recently Watched empty → *"Nothing watched yet. Open a channel to get started."*
-- Search no results → *"No channels or groups match '…'"*
-- Blocked page empty → *"Nothing blocked."*
+- Favorites empty → _"No bookmarks yet — click ★ on any channel."_
+- Recently Watched empty → _"Nothing watched yet. Open a channel to get started."_
+- Search no results → _"No channels or groups match '…'"_
+- Blocked page empty → _"Nothing blocked."_
 
 ### Keyboard Shortcuts
 
-| Key       | Action                             |
-|-----------|------------------------------------|
-| `↑` / `↓` | Navigate within the focused panel  |
-| `←` / `→` | Switch focus between panels        |
-| `Enter`   | Play focused channel               |
-| `B`       | Toggle bookmark on focused channel |
-| `/`       | Focus global search                |
-| `Escape`  | Clear search / close modal         |
-| `?`       | Open Keyboard Shortcuts modal      |
+| Key       | Action                                                                                  |
+| --------- | --------------------------------------------------------------------------------------- |
+| `↑` / `↓` | Navigate within the focused panel                                                       |
+| `←` / `→` | Switch focus between panels                                                             |
+| `Enter`   | Play focused channel                                                                    |
+| `B`       | Toggle bookmark on focused channel                                                      |
+| `/`       | Focus global search                                                                     |
+| `Escape`  | Close modal / sidebar sheet → clear global search → clear scoped search → leave Blocked |
+| `?`       | Open Keyboard Shortcuts modal                                                           |
 
 ### Window Title
 
 Dynamic title reflecting current state:
 
 | State         | Title                          |
-|---------------|--------------------------------|
+| ------------- | ------------------------------ |
 | No playlist   | `Neptune TV`                   |
 | Home View     | `Neptune TV`                   |
 | Group Detail  | `Neptune TV — Sports (324 ch)` |
 | Search active | `Neptune TV — Search: "sky"`   |
 | Importing     | `Neptune TV — Importing…`      |
+| Blocked page  | `Neptune TV — Blocked`         |
 
 ### Responsive Layout (based on Tailwind's breakpoints)
 
-| Breakpoint | Layout                                                         |
-|------------|----------------------------------------------------------------|
-| Desktop    | Full two-panel (sidebar + content area)                        |
-| Tablet     | Sidebar collapses to a slide-over drawer (hamburger toggle)    |
-| Mobile     | No sidebar; groups via bottom sheet; header condenses to icons |
+Implemented in v0.1.0 (Tauri resizable window; layout follows viewport width).
+
+| Breakpoint                     | Layout                                                                           |
+| ------------------------------ | -------------------------------------------------------------------------------- |
+| Desktop (`lg+`, ≥1024px)       | Full two-panel (sidebar + content area)                                          |
+| Tablet (`md`–`lg`, 768–1023px) | Sidebar in a left slide-over sheet (hamburger)                                   |
+| Mobile (`<md`, <768px)         | Groups list in a bottom sheet; header condenses (hamburger, compact sort toggle) |

@@ -1,0 +1,9 @@
+dist
+coverage
+node_modules
+.pnp.*
+.yarn
+src-tauri/target
+src-tauri/gen
+src/components/ui
+yarn.lock

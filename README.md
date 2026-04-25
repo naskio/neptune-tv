@@ -14,53 +14,56 @@ most IPTV players (like VLC or Web-based ones) lag or crash when loading a 40MB 
 
 ## Key Features
 
-- *Rust Core*: Blazing fast M3U8 parsing and data management.
-- *Low Footprint*: Uses the native OS WebView—tiny binary size, minimal RAM usage.
-- *Massive Playlist Support*: Smoothly handles files with 1M+ entries via SQLite indexing.
-- *Group Virtualization*: Instant scrolling through thousands of categories.
-- *Global Search*: Find any channel in milliseconds.
-- *Cross-Platform*: Runs on Windows, macOS, and Linux.
+- _Rust Core_: Blazing fast M3U8 parsing and data management.
+- _Low Footprint_: Uses the native OS WebView—tiny binary size, minimal RAM usage.
+- _Massive Playlist Support_: Smoothly handles files with 1M+ entries via SQLite indexing.
+- _Group Virtualization_: Instant scrolling through thousands of categories.
+- _Global Search_: Find any channel in milliseconds.
+- _Cross-Platform_: Runs on Windows, macOS, and Linux.
 
 ## Tech Stack
 
-- *Framework*: Tauri
-- *Backend*: Rust (for parsing and DB)
-- *Database*: SQLite (local persistence)
-- *Frontend*: React + TypeScript + Tailwind CSS with shadcn/ui
-- *List Rendering*: TanStack Virtual
+- _Framework_: Tauri
+- _Backend_: Rust (for parsing and DB)
+- _Database_: SQLite (local persistence)
+- _Frontend_: React + TypeScript + Tailwind CSS with shadcn/ui
+- _List Rendering_: TanStack Virtual
 
 ---
-
-# Tauri + React + Typescript
-
-This template should help get you started developing with Tauri, React and Typescript in Vite.
-
-## Recommended IDE Setup
-
-- [VS Code](https://code.visualstudio.com/) + [Tauri](https://marketplace.visualstudio.com/items?itemName=tauri-apps.tauri-vscode) + [rust-analyzer](https://marketplace.visualstudio.com/items?itemName=rust-lang.rust-analyzer)
 
 ## Requirements
 
 - [Node.js](https://nodejs.org/) (LTS recommended)
-- [Rust](https://www.rust-lang.org/tools/install) (stable)
+- [Rust](https://www.rust-lang.org/tools/install) (stable toolchain; `clippy` + `rustfmt` recommended)
+- [Yarn](https://yarnpkg.com/) 4.x (Berry)
 
-## Installation
+## Development
 
 ```shell
 yarn install
 ```
 
-## Development
+- **Full app (Tauri + Vite):** `yarn tauri dev`
+- **Frontend only (mock adapter):** `yarn dev`
+- **Tests:** `yarn test`
+- **Lint:** `yarn lint` · **Typecheck:** `yarn typecheck`
+- **Rust:** from `src-tauri/`: `cargo clippy --all-targets -- -D warnings` · `cargo test` · `cargo fmt --check`
+
+## Build
+
+Production bundle (installers per platform):
 
 ```shell
-yarn tauri dev
+yarn tauri build
 ```
 
-## File Structure
+Artifacts are emitted under `src-tauri/target/release/` and platform-specific bundle outputs (e.g. `.dmg`, `.msi`).
 
-| Path       |                  Description                  |
-|------------|:---------------------------------------------:|
-| public/    | Contains static assets like images and videos |
-| index.html | The main HTML file for the app (entry point)  |
-| src/       |  Contains all the React components and logic  |
-| src-tauri/ |  Contains Rust code and Tauri configuration   |
+## Documentation
+
+- Product and behaviour: [`FEATURES.md`](FEATURES.md)
+- Engineering reference: [`CLAUDE.md`](CLAUDE.md)
+
+## License
+
+This project is licensed under the GNU General Public License v3.0 — see [`LICENSE`](LICENSE).

@@ -1,16 +1,49 @@
 <!--This file is used to inject the React application into the DOM.-->
 <!doctype html>
 <html lang="en">
-<head>
-    <meta charset="UTF-8"/>
-    <link rel="icon" type="image/svg+xml" href="/neptune.svg"/>
-    <link href="/src/main.css" rel="stylesheet">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
-    <title>Neptune TV - Blazing-Fast IPTV M3U8 Player</title>
-</head>
+  <head>
+    <script>
+      // Pre-paint sync of theme + locale (avoids FOUC). Mirrors the zustand persist
+      // shape from `settingsStore.partialize` (`themeMode` + `locale`).
+      (function () {
+        var SUPPORTED = ["en", "fr", "ar"];
+        var RTL = { ar: true };
+        try {
+          var raw = localStorage.getItem("neptune:v1:settings");
+          var themeMode = "system";
+          var locale = "system";
+          if (raw) {
+            var s = JSON.parse(raw);
+            if (s && s.state) {
+              if (s.state.themeMode) themeMode = s.state.themeMode;
+              if (s.state.locale) locale = s.state.locale;
+            }
+          }
+          var dark =
+            themeMode === "dark" ||
+            (themeMode === "system" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+          if (dark) {
+            document.documentElement.classList.add("dark");
+          }
+          var lang = locale;
+          if (lang === "system" || SUPPORTED.indexOf(lang) === -1) {
+            var nav = (navigator.language || "en").toLowerCase().split("-")[0];
+            lang = SUPPORTED.indexOf(nav) >= 0 ? nav : "en";
+          }
+          document.documentElement.setAttribute("lang", lang);
+          document.documentElement.setAttribute("dir", RTL[lang] ? "rtl" : "ltr");
+        } catch (_) {}
+      })();
+    </script>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/neptune.svg" />
+    <link href="/src/main.css" rel="stylesheet" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Neptune TV</title>
+  </head>
 
-<body>
-<div id="root"></div>
-<script type="module" src="/src/main.tsx"></script>
-</body>
+  <body>
+    <div id="root"></div>
+    <script type="module" src="/src/main.tsx"></script>
+  </body>
 </html>
