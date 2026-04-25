@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { MenuIcon } from "lucide-react";
 import { useTranslation } from "react-i18next";
 
@@ -15,6 +16,7 @@ import { ThemeToggle } from "./Header/ThemeToggle";
 
 function LogoHome() {
   const { t } = useTranslation();
+  const [logoFailed, setLogoFailed] = useState(false);
   return (
     <button
       type="button"
@@ -25,7 +27,21 @@ function LogoHome() {
       aria-label={t("header.menu.home")}
       title={t("header.menu.home")}
     >
-      <span className="rounded-md bg-primary px-2 py-0.5 text-primary-foreground">N</span>
+      {logoFailed ? (
+        <span className="rounded-md bg-primary px-2 py-0.5 text-primary-foreground">N</span>
+      ) : (
+        <img
+          src="/neptune.svg"
+          alt=""
+          width={28}
+          height={28}
+          loading="lazy"
+          className="size-7 shrink-0 object-contain"
+          onError={() => {
+            setLogoFailed(true);
+          }}
+        />
+      )}
       <span className="hidden sm:inline">{t("app.name")}</span>
     </button>
   );

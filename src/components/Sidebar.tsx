@@ -68,16 +68,19 @@ export function Sidebar({ showHeading = true }: SidebarProps) {
           <h2 className="text-sm font-semibold tracking-tight">{t("sidebar.heading")}</h2>
         </div>
       ) : null}
-      <div className="flex flex-col gap-1 p-2">
+      <div className="flex flex-col gap-1 px-2 py-1">
         <VirtualGroupItem virtualKey={VIRTUAL_FAVORITE_CHANNELS} />
         <VirtualGroupItem virtualKey={VIRTUAL_RECENTLY_WATCHED} />
         <VirtualGroupItem virtualKey={VIRTUAL_FAVORITE_GROUPS} />
       </div>
       <Separator />
-      <div ref={parentRef} className="min-h-0 flex-1 overflow-auto pe-2 [scrollbar-gutter:stable]">
+      <div
+        ref={parentRef}
+        className="min-h-0 flex-1 overflow-auto pe-2.5 [scrollbar-gutter:stable]"
+      >
         <div className="flex min-h-full w-full flex-col">
           <div className="min-h-0 flex-1 basis-0" aria-hidden />
-          <div className="shrink-0 pt-2 pb-0.5">
+          <div className="shrink-0 pt-1.5 pb-1">
             <div className="relative w-full" style={{ height: virtualizer.getTotalSize() }}>
               {virtualizer.getVirtualItems().map((v) => {
                 const g = items[v.index]!;
