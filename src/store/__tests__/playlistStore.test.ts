@@ -34,7 +34,7 @@ describe("playlistStore", () => {
     resetMockAdapterStateForTests(seedMockData(42));
     await usePlaylistStore.getState().init();
     expect(usePlaylistStore.getState().hasPlaylist).toBe(true);
-    expect(usePlaylistStore.getState().meta?.channelCount).toBe(5_000);
+    expect(usePlaylistStore.getState().playlists[0]?.channelCount).toBe(5_000);
   });
 
   it("closePlaylist wipes adapter state and browse stores", async () => {

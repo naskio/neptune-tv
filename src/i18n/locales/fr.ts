@@ -40,8 +40,9 @@ export const fr: LocaleResources = {
     },
     playlistMenu: {
       sectionLabel: "Playlist",
-      openDifferent: "Ouvrir une autre playlist…",
-      closePlaylist: "Fermer la playlist",
+      addLocalPlaylist: "Ajouter une playlist locale…",
+      addRemotePlaylist: "Ajouter une playlist distante…",
+      clearData: "Effacer toutes les données",
       themeLabel: "Thème",
       themeLight: "Clair",
       themeDark: "Sombre",
@@ -56,9 +57,16 @@ export const fr: LocaleResources = {
     },
     progress: "Importation… {{count, number}} chaînes",
     badge: {
-      imported: "Importée le {{when}}",
-      stats: "{{channels, number}} ch · {{groups, number}} groupes",
+      tooltipHeading: "Playlists importées",
       detailsButton: "Détails de l’import",
+      labelSource: "Source",
+      labelKind: "Type",
+      labelImported: "Date d’import",
+      labelChannels: "Chaînes",
+      labelGroups: "Groupes",
+      labelSkipped: "Ignorées",
+      kindLocal: "Fichier local",
+      kindRemote: "URL distante",
     },
   },
 
@@ -131,15 +139,11 @@ export const fr: LocaleResources = {
   confirm: {
     cancel: "Annuler",
     confirm: "Confirmer",
-    openDifferent: {
-      title: "Ouvrir une autre playlist ?",
-      description: "La playlist actuelle sera supprimée. Cette action est irréversible.",
-      confirmLabel: "Continuer",
-    },
-    closePlaylist: {
-      title: "Fermer la playlist ?",
-      description: "Toutes les données seront définitivement supprimées de cet appareil.",
-      confirmLabel: "Supprimer",
+    clearData: {
+      title: "Effacer toutes les données ?",
+      description:
+        "Toutes les playlists importées et leurs données seront définitivement supprimées de cet appareil. Cette action est irréversible.",
+      confirmLabel: "Effacer toutes les données",
     },
   },
 
@@ -195,6 +199,8 @@ export const fr: LocaleResources = {
       "{{channels, number}} chaînes et {{groups, number}} groupes importés. {{skipped, number}} entrées ignorées.",
     importCancelled: "Importation annulée.",
     ipcFailed: "Une erreur est survenue ({{command}}) : {{message}}",
+    vlcFallback:
+      "Impossible de lancer VLC (absent, bloqué ou indisponible). Le flux a été ouvert avec l’application par défaut.",
   },
 
   windowTitle: {

@@ -23,7 +23,7 @@ export function withErrorReporting(inner: NeptuneAdapter): NeptuneAdapter {
 
   return {
     isPlaylistLoaded: () => trace("isPlaylistLoaded", inner.isPlaylistLoaded()),
-    getPlaylistMeta: () => trace("getPlaylistMeta", inner.getPlaylistMeta()),
+    listPlaylistMeta: () => trace("listPlaylistMeta", inner.listPlaylistMeta()),
     importPlaylistLocal: (path) => trace("importPlaylistLocal", inner.importPlaylistLocal(path)),
     importPlaylistRemote: (url) => trace("importPlaylistRemote", inner.importPlaylistRemote(url)),
     cancelImport: () => trace("cancelImport", inner.cancelImport()),

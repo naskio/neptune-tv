@@ -25,7 +25,7 @@ export async function initStores(): Promise<void> {
   }
 }
 
-/** Clears browser UI stores after `wipePlaylist` or a failed / cancelled import. */
+/** Clears browser UI stores after `wipePlaylist` or a failed / cancelled import with an empty database. */
 export function resetBrowseStores(): void {
   useGroupStore.getState().reset();
   useChannelStore.getState().reset();
@@ -43,7 +43,19 @@ export async function onPlaylistImported(): Promise<void> {
   await Promise.all([useGroupStore.getState().loadFirstPage(), usePlayerStore.getState().init()]);
 }
 
-/** Called when an import is cancelled, errors, or the DB is rolled back. */
+/**
+ * Called when an import is cancelled, errors, or the in-progress transaction is rolled back.
+ * If the database is still non-empty, keep browse state and refresh caches; otherwise return to
+ * the empty-DB shell (same as a full wipe).
+ */
 export function onPlaylistImportFailed(): void {
-  resetBrowseStores();
+  if (!usePlaylistStore.getState().hasPlaylist) {
+    resetBrowseStores();
+    return;
+  }
+  useSearchStore.getState().reset();
+  useUiStore.getState().clearFocus();
+  useUiStore.setState({ confirmDialog: null });
+  void useGroupStore.getState().loadFirstPage();
+  void usePlayerStore.getState().init();
 }

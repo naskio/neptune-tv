@@ -38,8 +38,8 @@ export function createTauriAdapter(deps?: { invoke: InvokeFn; listen: ListenFn }
     isPlaylistLoaded() {
       return wrap(inv<boolean>("is_playlist_loaded"));
     },
-    getPlaylistMeta() {
-      return wrap(inv<PlaylistMeta | null>("get_playlist_meta"));
+    listPlaylistMeta() {
+      return wrap(inv<PlaylistMeta[]>("list_playlist_meta"));
     },
     importPlaylistLocal(path) {
       return wrap(inv("import_playlist_local", { path }));

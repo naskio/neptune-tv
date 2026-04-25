@@ -83,8 +83,8 @@ describe("withInputValidation", () => {
   it("forwards valid inputs to the inner adapter", async () => {
     const groups = await a.listGroups({ sort: "default", limit: 5 });
     expect(groups.items).toHaveLength(5);
-    const meta = await a.getPlaylistMeta();
-    expect(meta).not.toBeNull();
+    const pl = await a.listPlaylistMeta();
+    expect(pl.length).toBeGreaterThan(0);
   });
 
   it("includes the failing field in the error message", async () => {

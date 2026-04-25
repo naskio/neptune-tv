@@ -40,7 +40,7 @@ import { NeptuneClientError } from "./types";
 export function withInputValidation(inner: NeptuneAdapter): NeptuneAdapter {
   return {
     isPlaylistLoaded: () => inner.isPlaylistLoaded(),
-    getPlaylistMeta: () => inner.getPlaylistMeta(),
+    listPlaylistMeta: () => inner.listPlaylistMeta(),
     importPlaylistLocal: (path) =>
       callValidated(LocalPathSchemaIpc, path, "path", (v) => inner.importPlaylistLocal(v)),
     importPlaylistRemote: (url) =>

@@ -230,7 +230,7 @@ async fn ensure_group(
         "#,
     )
     .bind(group_title)
-     .bind(sort_order)
+    .bind(sort_order)
     .execute(&mut **tx)
     .await?;
     Ok(())
@@ -451,12 +451,11 @@ mod tests {
             .fetch_one(&pool)
             .await
             .expect("group count query should succeed");
-        let persisted_channels: i64 = sqlx::query_scalar(
-            "SELECT COALESCE(SUM(channel_count), 0) FROM groups",
-        )
-        .fetch_one(&pool)
-        .await
-        .expect("persisted group channel counts query should succeed");
+        let persisted_channels: i64 =
+            sqlx::query_scalar("SELECT COALESCE(SUM(channel_count), 0) FROM groups")
+                .fetch_one(&pool)
+                .await
+                .expect("persisted group channel counts query should succeed");
         assert_eq!(db_channels, 2);
         assert_eq!(db_groups, 2);
         assert_eq!(persisted_channels, 2);
@@ -485,5 +484,38 @@ mod tests {
             .expect("group count query should succeed");
         assert_eq!(db_channels, 0);
         assert_eq!(db_groups, 0);
+    }
+
+    #[tokio::test]
+    async fn import_from_lines_second_run_appends_without_wiping_first() {
+        let pool = setup_pool().await;
+        let handle = ImportHandle::new();
+        let first = vec![
+            r#"#EXTINF:-1 group-title="News",News 24"#,
+            "https://example.com/news24",
+        ];
+        run_import_from_lines(&pool, &first, &handle)
+            .await
+            .expect("first import should succeed");
+
+        let second = vec![
+            r#"#EXTINF:-1 group-title="Sports",Game TV"#,
+            "https://example.com/game",
+        ];
+        run_import_from_lines(&pool, &second, &handle)
+            .await
+            .expect("second import should succeed");
+
+        let db_channels: i64 = sqlx::query_scalar("SELECT COUNT(1) FROM channels")
+            .fetch_one(&pool)
+            .await
+            .expect("channel count");
+        assert_eq!(db_channels, 2);
+        let in_news: i64 =
+            sqlx::query_scalar("SELECT COUNT(1) FROM channels WHERE group_title = 'News'")
+                .fetch_one(&pool)
+                .await
+                .expect("query");
+        assert_eq!(in_news, 1);
     }
 }

@@ -40,7 +40,7 @@ pub async fn run(pool: &SqlitePool) -> Result<(), NeptuneError> {
         );
 
         CREATE TABLE IF NOT EXISTS playlist_meta (
-            id INTEGER PRIMARY KEY CHECK (id = 1),
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
             source TEXT NOT NULL,
             kind TEXT NOT NULL,
             imported_at INTEGER NOT NULL,
@@ -111,11 +111,9 @@ pub async fn run(pool: &SqlitePool) -> Result<(), NeptuneError> {
     .fetch_one(pool)
     .await?;
     if has_channel_count == 0 {
-        sqlx::query(
-            "ALTER TABLE groups ADD COLUMN channel_count INTEGER NOT NULL DEFAULT 0",
-        )
-        .execute(pool)
-        .await?;
+        sqlx::query("ALTER TABLE groups ADD COLUMN channel_count INTEGER NOT NULL DEFAULT 0")
+            .execute(pool)
+            .await?;
         sqlx::query(
             r#"
             UPDATE groups

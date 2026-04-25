@@ -12,8 +12,8 @@ import { resetAllStoresAndMock } from "./testSetup";
 async function seedLoadedPlaylist() {
   resetMockAdapterStateForTests(seedMockData(42));
   const { mockAdapter } = await import("@/lib/adapter");
-  const meta = await mockAdapter.getPlaylistMeta();
-  usePlaylistStore.setState({ hasPlaylist: true, meta });
+  const playlists = await mockAdapter.listPlaylistMeta();
+  usePlaylistStore.setState({ hasPlaylist: true, playlists });
 }
 
 describe("playerStore", () => {
@@ -107,6 +107,7 @@ describe("playerStore", () => {
       blockedAt: null,
     };
     const meta: PlaylistMeta = {
+      id: 1,
       source: "mock://single-channel",
       kind: "local",
       importedAt: 1_700_000_000,
@@ -117,11 +118,11 @@ describe("playerStore", () => {
     const state: MockState = {
       groups: new Map([[group.title, group]]),
       channels: new Map([[channel.id, channel]]),
-      meta,
+      metas: [meta],
       nextChannelId: 2,
     };
     resetMockAdapterStateForTests(state);
-    usePlaylistStore.setState({ hasPlaylist: true, meta });
+    usePlaylistStore.setState({ hasPlaylist: true, playlists: [meta] });
 
     const { mockAdapter } = await import("@/lib/adapter");
     await useGroupStore.getState().loadFirstPage();

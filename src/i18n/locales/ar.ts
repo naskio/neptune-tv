@@ -42,8 +42,9 @@ export const ar: LocaleResources = {
     },
     playlistMenu: {
       sectionLabel: "قائمة التشغيل",
-      openDifferent: "فتح قائمة تشغيل أخرى…",
-      closePlaylist: "إغلاق قائمة التشغيل",
+      addLocalPlaylist: "إضافة قائمة تشغيل محلية…",
+      addRemotePlaylist: "إضافة قائمة تشغيل بعيدة…",
+      clearData: "مسح جميع البيانات",
       themeLabel: "المظهر",
       themeLight: "فاتح",
       themeDark: "داكن",
@@ -58,9 +59,16 @@ export const ar: LocaleResources = {
     },
     progress: "جارٍ الاستيراد… {{count, number}} قناة",
     badge: {
-      imported: "تم الاستيراد {{when}}",
-      stats: "{{channels, number}} قناة · {{groups, number}} مجموعات",
+      tooltipHeading: "قوائم التشغيل المستوردة",
       detailsButton: "تفاصيل الاستيراد",
+      labelSource: "المصدر",
+      labelKind: "النوع",
+      labelImported: "تاريخ الاستيراد",
+      labelChannels: "القنوات",
+      labelGroups: "المجموعات",
+      labelSkipped: "متجاهَلة",
+      kindLocal: "ملف محلي",
+      kindRemote: "رابط بعيد",
     },
   },
 
@@ -133,15 +141,11 @@ export const ar: LocaleResources = {
   confirm: {
     cancel: "إلغاء",
     confirm: "تأكيد",
-    openDifferent: {
-      title: "فتح قائمة تشغيل أخرى؟",
-      description: "ستتم إزالة قائمة التشغيل الحالية. لا يمكن التراجع عن هذا الإجراء.",
-      confirmLabel: "متابعة",
-    },
-    closePlaylist: {
-      title: "إغلاق قائمة التشغيل؟",
-      description: "سيتم حذف جميع البيانات نهائيًا من هذا الجهاز.",
-      confirmLabel: "حذف",
+    clearData: {
+      title: "مسح جميع البيانات؟",
+      description:
+        "سيتم حذف جميع قوائم التشغيل المستوردة وبياناتها نهائيًا من هذا الجهاز. لا يمكن التراجع.",
+      confirmLabel: "مسح جميع البيانات",
     },
   },
 
@@ -201,6 +205,8 @@ export const ar: LocaleResources = {
       "تم استيراد {{channels, number}} قناة و {{groups, number}} مجموعة. تم تخطّي {{skipped, number}} إدخال.",
     importCancelled: "تم إلغاء الاستيراد.",
     ipcFailed: "حدث خطأ ({{command}}): {{message}}",
+    vlcFallback:
+      "تعذّر تشغيل VLC (غير مثبّت أو محجوب أو غير متاح). فُتح البث في التطبيق الافتراضي بدلًا منه.",
   },
 
   windowTitle: {

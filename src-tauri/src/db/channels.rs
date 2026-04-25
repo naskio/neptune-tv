@@ -332,13 +332,11 @@ pub async fn set_channel_blocked(
 
     if was_blocked != value {
         let delta: i64 = if value { -1 } else { 1 };
-        sqlx::query(
-            "UPDATE groups SET channel_count = MAX(channel_count + ?, 0) WHERE title = ?",
-        )
-        .bind(delta)
-        .bind(group_title)
-        .execute(&mut *tx)
-        .await?;
+        sqlx::query("UPDATE groups SET channel_count = MAX(channel_count + ?, 0) WHERE title = ?")
+            .bind(delta)
+            .bind(group_title)
+            .execute(&mut *tx)
+            .await?;
     }
     tx.commit().await?;
     Ok(())
@@ -508,19 +506,21 @@ mod tests {
         let pool = setup_pool().await;
         let id = seed_one_channel(&pool).await;
 
-        let before: i64 = sqlx::query_scalar("SELECT channel_count FROM groups WHERE title = 'Sports'")
-            .fetch_one(&pool)
-            .await
-            .expect("read initial channel_count");
+        let before: i64 =
+            sqlx::query_scalar("SELECT channel_count FROM groups WHERE title = 'Sports'")
+                .fetch_one(&pool)
+                .await
+                .expect("read initial channel_count");
         assert_eq!(before, 1);
 
         set_channel_blocked(&pool, id, true)
             .await
             .expect("block should succeed");
-        let blocked: i64 = sqlx::query_scalar("SELECT channel_count FROM groups WHERE title = 'Sports'")
-            .fetch_one(&pool)
-            .await
-            .expect("read blocked channel_count");
+        let blocked: i64 =
+            sqlx::query_scalar("SELECT channel_count FROM groups WHERE title = 'Sports'")
+                .fetch_one(&pool)
+                .await
+                .expect("read blocked channel_count");
         assert_eq!(blocked, 0);
 
         set_channel_blocked(&pool, id, false)

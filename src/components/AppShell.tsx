@@ -1,6 +1,7 @@
 import { Toaster } from "@/components/ui/sonner";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
+import { usePlaybackVlcFallbackToast } from "@/hooks/usePlaybackVlcFallbackToast";
 import { useWindowTitle } from "@/hooks/useWindowTitle";
 import { usePlaylistStore } from "@/store/playlistStore";
 import { useUiStore } from "@/store/uiStore";
@@ -20,6 +21,7 @@ import { ConfirmDialog } from "@/components/Modal/ConfirmDialog";
 export function AppShell() {
   useWindowTitle();
   useKeyboardShortcuts();
+  usePlaybackVlcFallbackToast();
   const hasPlaylist = usePlaylistStore((s) => s.hasPlaylist);
   const blocked = useUiStore((s) => s.blockedPageOpen);
 

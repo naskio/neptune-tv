@@ -37,7 +37,7 @@ src/
     ThemeSync.tsx       # settingsStore.themeMode → next-themes
     LocaleSync.tsx      # settingsStore.locale → i18next.changeLanguage + html lang/dir
     ResponsiveSidebarSheet.tsx  # tablet left / mobile bottom Sheet for Sidebar when &lt;lg
-    Header/             # GlobalSearchInput · GlobalSearchResults · SortToggle · ThemeToggle · PlaylistInfoBadge · HeaderMenu · ImportProgressBar
+    Header/             # GlobalSearchInput · GlobalSearchResults · SortToggle · PlaylistImportInfoButton · ThemeToggle · HeaderMenu · ImportProgressBar
     Sidebar/            # VirtualGroupItem · RealGroupItem
     Card/               # ChannelCard · GroupCard · CardImage · ChannelContextMenu · GroupContextMenu
     List/               # VirtualGrid · VirtualHorizontalRow · AZIndexBar
@@ -112,7 +112,8 @@ Add Rust dependencies by editing `src-tauri/Cargo.toml` directly — never use `
 
 - **`@/lib/adapter`** exports a single `adapter` implementing `NeptuneAdapter` (see `neptuneAdapter.ts`). At runtime, `globalThis.window.__TAURI_INTERNALS__` selects `tauriAdapter` (real `invoke` + `event.listen`); otherwise `mockAdapter` (deterministic `seedMockData(42)` after a simulated import).
 - **Typing:** DTOs and errors live in `lib/types.ts` (mirrors `src-tauri` JSON). User-facing inputs are validated in `lib/schemas/` (Zod) before store actions call the adapter in Phase 3.
-- **Swapping mock data in dev:** `resetMockAdapterStateForTests` / `seedMockData` are exported from `mockFixtures` / `mockAdapter` for tests; the mock singleton resets on `wipe_playlist` and before each import.
+- **Swapping mock data in dev:** `resetMockAdapterStateForTests` / `seedMockData` are exported from `mockFixtures` / `mockAdapter` for tests; the mock singleton resets on `wipe_playlist`. Additional imports **append** (no wipe) unless `wipe_playlist` is called.
+- **Schema changes in dev** that alter the SQLite `CREATE TABLE` in `migrations.rs` may require **deleting the local app database** and re-importing; there is no additive migration chain yet.
 - Do not call `invoke()` from components — only from `tauriAdapter.ts` (or the mock).
 
 ---
@@ -150,15 +151,15 @@ UI feedback.
 
 Store scope:
 
-| Store           | Responsibility                                                                                                                                                                            |
-| --------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| `settingsStore` | App-wide preferences — **`sortMode` (Default / Name)**, **`themeMode` (light / dark / system)**, and **`locale` (en / fr / ar / system)**, persisted to `localStorage`                    |
-| `playlistStore` | Import flow, progress, cancel, wipe, error state, shortcuts modal flag (toasts are fired directly via `@/lib/toast`, not stored)                                                          |
-| `groupStore`    | Group list, active selection, bookmark/block (groups)                                                                                                                                     |
-| `channelStore`  | Channel list in selected group, pagination cursor, bookmark/block (channels)                                                                                                              |
-| `searchStore`   | Global + scoped search query, debounced (150ms) results, search-focus token for Phase 4                                                                                                   |
-| `playerStore`   | Recently watched, `recentInGroup` (detail rail), favourites, blocked lists, `openChannel`, `loadRecentInGroup`, unblock helpers                                                           |
-| `uiStore`       | Ephemeral UI: blocked page flag, confirm dialog payload, responsive **sidebar sheet** open state, keyboard focus (`sidebar` / `main`), no `react-router` — route is derived in `AppShell` |
+| Store           | Responsibility                                                                                                                                                                                   |
+| --------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `settingsStore` | App-wide preferences — **`sortMode` (Default / Name)**, **`themeMode` (light / dark / system)**, and **`locale` (en / fr / ar / system)**, persisted to `localStorage`                           |
+| `playlistStore` | Import flow, **`playlists: PlaylistMeta[]`** (all completed imports, from `list_playlist_meta` IPC), progress, cancel, **`wipePlaylist` only for user-confirmed Clear data** (toasts not stored) |
+| `groupStore`    | Group list, active selection, bookmark/block (groups)                                                                                                                                            |
+| `channelStore`  | Channel list in selected group, pagination cursor, bookmark/block (channels)                                                                                                                     |
+| `searchStore`   | Global + scoped search query, debounced (150ms) results, search-focus token for Phase 4                                                                                                          |
+| `playerStore`   | Recently watched, `recentInGroup` (detail rail), favourites, blocked lists, `openChannel`, `loadRecentInGroup`, unblock helpers                                                                  |
+| `uiStore`       | Ephemeral UI: blocked page flag, confirm dialog payload, responsive **sidebar sheet** open state, keyboard focus (`sidebar` / `main`), no `react-router` — route is derived in `AppShell`        |
 
 Each store exposes `__reset*StoreForTests()` (dev/test only) for Vitest. App bootstrap calls `initStores()` from `src/store/index.ts` (after `playlistStore.init()` wiring import listeners, preload groups/player when a playlist exists).
 
@@ -254,10 +255,17 @@ mapping is in `FEATURES.md` (Data Model → Channels).
 
 ### External Playback
 
-`play_channel` loads the channel’s `stream_url` and opens it in **VLC** when available: macOS (`open -a VLC`), Windows
-(`vlc` on `PATH` or standard `Program Files` paths), Linux (`vlc` on `PATH`, `flatpak run org.videolan.VLC`, or `snap run vlc`). If none of
-those succeed, it falls back to `tauri-plugin-opener` (`open_url`), which may open a browser. `playerStore` calls
+`play_channel` loads the channel’s `stream_url`. **VLC** is preferred when the URL is clearly a manifest or stream
+protocol (`should_try_vlc` heuristics), for **local** `file:`/path playlists (extension + sniff), or when an
+**ambiguous** `https` **probe** is a **single GET** with `Range: bytes=0-1023` (browser-like, follows redirects, reads
+`Content-Type` and the final URL); `http_probe_merge_result` then decides VLC vs default. If the probe fails, the app
+uses the **default** handler only (conservative). If VLC is not used or does not start, it falls back to
+`tauri-plugin-opener` (`open_url`) and emits `playback:vlc-fallback` for a Sonner toast. `playerStore` calls
 `adapter.playChannel(id)` — never `invoke()` directly from components.
+
+- **Spec:** `FEATURES.md` has a **Playback: VLC vs default (decision reference)** section for product-level detail.
+- **Tests:** `src-tauri/src/external_player.rs` includes `http_probe_merge_result` and the `open_logic` test module; run
+  `cargo test open_logic` to validate VLC vs default and the GET probe branch.
 
 ---
 
@@ -325,8 +333,8 @@ those succeed, it falls back to `tauri-plugin-opener` (`open_url`), which may op
    in the parser.
 8. Cursor-based pagination — never `OFFSET`.
 9. Cross-platform — `#[cfg(target_os)]` for any platform-specific code; all three targets must build.
-10. No in-app video player — no `<video>`, HLS.js, or codec; playback is delegated to VLC when installed, else
-    `tauri-plugin-opener`.
+10. No in-app video player — no `<video>`, HLS.js, or codec; **manifests** (HLS / M3U / DASH) and **non-`http(s)`** stream
+    schemes try VLC when installed, else `tauri-plugin-opener`; plain pages and typical progressive URLs use `tauri-plugin-opener` only.
 
 ---
 

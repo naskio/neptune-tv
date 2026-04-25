@@ -12,8 +12,8 @@ import { resetAllStoresAndMock } from "./testSetup";
 async function seedLoadedPlaylist() {
   resetMockAdapterStateForTests(seedMockData(42));
   const { mockAdapter } = await import("@/lib/adapter");
-  const meta = await mockAdapter.getPlaylistMeta();
-  usePlaylistStore.setState({ hasPlaylist: true, meta });
+  const playlists = await mockAdapter.listPlaylistMeta();
+  usePlaylistStore.setState({ hasPlaylist: true, playlists });
 }
 
 describe("groupStore", () => {

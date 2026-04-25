@@ -30,7 +30,7 @@ export type Unsubscribe = () => void;
  */
 export interface NeptuneAdapter {
   isPlaylistLoaded(): Promise<boolean>;
-  getPlaylistMeta(): Promise<PlaylistMeta | null>;
+  listPlaylistMeta(): Promise<PlaylistMeta[]>;
   importPlaylistLocal(path: string): Promise<void>;
   importPlaylistRemote(url: string): Promise<void>;
   cancelImport(): Promise<void>;

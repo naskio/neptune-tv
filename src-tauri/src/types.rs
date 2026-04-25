@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct PlaylistMeta {
+    pub id: i64,
     pub source: String,
     pub kind: String,
     pub imported_at: i64,

@@ -67,6 +67,7 @@ export interface SearchResults {
 }
 
 export interface PlaylistMeta {
+  id: number;
   source: string;
   kind: string;
   importedAt: Timestamp;

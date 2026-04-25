@@ -50,7 +50,8 @@ function importCompleteVars(c: ImportCompleteEvent) {
 }
 
 export interface PlaylistState {
-  meta: PlaylistMeta | null;
+  /** Completed imports, oldest first (same order as `list_playlist_meta` / mock). */
+  playlists: PlaylistMeta[];
   hasPlaylist: boolean;
   importPhase: ImportPhase;
   progress: { inserted: number; groups: number; skipped: number };
@@ -70,9 +71,17 @@ export interface PlaylistActions {
 
 let importUnsub: (() => void) | null = null;
 
+async function syncFromAdapter(): Promise<Pick<PlaylistState, "playlists" | "hasPlaylist">> {
+  const [playlists, loaded] = await Promise.all([
+    adapter.listPlaylistMeta(),
+    adapter.isPlaylistLoaded(),
+  ]);
+  return { playlists, hasPlaylist: loaded };
+}
+
 export const usePlaylistStore = create<PlaylistState & PlaylistActions>()((set) => {
   return {
-    meta: null,
+    playlists: [],
     hasPlaylist: false,
     importPhase: "idle",
     progress: emptyProgress(),
@@ -88,11 +97,10 @@ export const usePlaylistStore = create<PlaylistState & PlaylistActions>()((set) 
 
     init: async () => {
       const status = await adapter.getImportStatus();
-      const meta = await adapter.getPlaylistMeta();
-      const hasPlaylist = Boolean(meta);
+      const { playlists, hasPlaylist } = await syncFromAdapter();
       if (status) {
         set({
-          meta,
+          playlists,
           hasPlaylist,
           importPhase: status.phase,
           progress: {
@@ -104,7 +112,7 @@ export const usePlaylistStore = create<PlaylistState & PlaylistActions>()((set) 
         });
       } else {
         set({
-          meta,
+          playlists,
           hasPlaylist,
           importPhase: "idle",
           progress: emptyProgress(),
@@ -128,10 +136,10 @@ export const usePlaylistStore = create<PlaylistState & PlaylistActions>()((set) 
           notifyProgress(PROGRESS_TOAST_ID, "toast.importProgress", { count: e.inserted });
         },
         onComplete: async (c) => {
-          const m = await adapter.getPlaylistMeta();
+          const { playlists: pl, hasPlaylist: hp } = await syncFromAdapter();
           set({
-            meta: m,
-            hasPlaylist: Boolean(m),
+            playlists: pl,
+            hasPlaylist: hp,
             importPhase: "completed",
             progress: {
               inserted: c.channels,
@@ -148,10 +156,10 @@ export const usePlaylistStore = create<PlaylistState & PlaylistActions>()((set) 
         onError: (err) => {
           const n = NeptuneClientError.fromUnknown(err);
           void (async () => {
-            const m = await adapter.getPlaylistMeta();
+            const { playlists: pl, hasPlaylist: hp } = await syncFromAdapter();
             set({
-              meta: m,
-              hasPlaylist: Boolean(m),
+              playlists: pl,
+              hasPlaylist: hp,
               importPhase: "failed",
               error: n,
               progress: emptyProgress(),
@@ -164,10 +172,10 @@ export const usePlaylistStore = create<PlaylistState & PlaylistActions>()((set) 
         },
         onCancelled: () => {
           void (async () => {
-            const m = await adapter.getPlaylistMeta();
+            const { playlists: pl, hasPlaylist: hp } = await syncFromAdapter();
             set({
-              meta: m,
-              hasPlaylist: Boolean(m),
+              playlists: pl,
+              hasPlaylist: hp,
               importPhase: "cancelled",
               progress: emptyProgress(),
             });
@@ -193,7 +201,13 @@ export const usePlaylistStore = create<PlaylistState & PlaylistActions>()((set) 
       } catch (e) {
         // The toast is emitted by `errorReportingAdapter`; we only persist
         // the error in store state for in-place UI feedback.
-        set({ importPhase: "failed", error: NeptuneClientError.fromUnknown(e) });
+        const { playlists: pl, hasPlaylist: hp } = await syncFromAdapter();
+        set({
+          importPhase: "failed",
+          error: NeptuneClientError.fromUnknown(e),
+          playlists: pl,
+          hasPlaylist: hp,
+        });
       }
     },
 
@@ -208,7 +222,13 @@ export const usePlaylistStore = create<PlaylistState & PlaylistActions>()((set) 
       try {
         await adapter.importPlaylistRemote(url);
       } catch (e) {
-        set({ importPhase: "failed", error: NeptuneClientError.fromUnknown(e) });
+        const { playlists: pl, hasPlaylist: hp } = await syncFromAdapter();
+        set({
+          importPhase: "failed",
+          error: NeptuneClientError.fromUnknown(e),
+          playlists: pl,
+          hasPlaylist: hp,
+        });
       }
     },
 
@@ -227,9 +247,8 @@ export const usePlaylistStore = create<PlaylistState & PlaylistActions>()((set) 
         set({ error: NeptuneClientError.fromUnknown(e) });
         return;
       }
-      const meta = await adapter.getPlaylistMeta();
       set({
-        meta,
+        playlists: [],
         hasPlaylist: false,
         importPhase: "idle",
         progress: emptyProgress(),
@@ -249,7 +268,7 @@ export function __resetPlaylistStoreForTests(): void {
   void importUnsub?.();
   importUnsub = null;
   usePlaylistStore.setState({
-    meta: null,
+    playlists: [],
     hasPlaylist: false,
     importPhase: "idle",
     progress: emptyProgress(),

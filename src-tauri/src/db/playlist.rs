@@ -9,20 +9,24 @@ pub async fn is_playlist_loaded(pool: &SqlitePool) -> Result<bool, NeptuneError>
     Ok(count > 0)
 }
 
-pub async fn get_playlist_meta(pool: &SqlitePool) -> Result<Option<PlaylistMeta>, NeptuneError> {
-    let row = sqlx::query(
-        "SELECT source, kind, imported_at, channel_count, group_count, skipped FROM playlist_meta WHERE id = 1",
+pub async fn list_playlist_meta(pool: &SqlitePool) -> Result<Vec<PlaylistMeta>, NeptuneError> {
+    let rows = sqlx::query(
+        "SELECT id, source, kind, imported_at, channel_count, group_count, skipped FROM playlist_meta ORDER BY id ASC",
     )
-    .fetch_optional(pool)
+    .fetch_all(pool)
     .await?;
-    Ok(row.map(|row| PlaylistMeta {
-        source: row.get("source"),
-        kind: row.get("kind"),
-        imported_at: row.get("imported_at"),
-        channel_count: row.get("channel_count"),
-        group_count: row.get("group_count"),
-        skipped: row.get("skipped"),
-    }))
+    Ok(rows
+        .into_iter()
+        .map(|row| PlaylistMeta {
+            id: row.get("id"),
+            source: row.get("source"),
+            kind: row.get("kind"),
+            imported_at: row.get("imported_at"),
+            channel_count: row.get("channel_count"),
+            group_count: row.get("group_count"),
+            skipped: row.get("skipped"),
+        })
+        .collect())
 }
 
 pub async fn save_playlist_meta(
@@ -35,15 +39,8 @@ pub async fn save_playlist_meta(
 ) -> Result<(), NeptuneError> {
     sqlx::query(
         r#"
-        INSERT INTO playlist_meta (id, source, kind, imported_at, channel_count, group_count, skipped)
-        VALUES (1, ?, ?, strftime('%s','now'), ?, ?, ?)
-        ON CONFLICT(id) DO UPDATE SET
-            source = excluded.source,
-            kind = excluded.kind,
-            imported_at = excluded.imported_at,
-            channel_count = excluded.channel_count,
-            group_count = excluded.group_count,
-            skipped = excluded.skipped
+        INSERT INTO playlist_meta (source, kind, imported_at, channel_count, group_count, skipped)
+        VALUES (?, ?, strftime('%s','now'), ?, ?, ?)
         "#,
     )
     .bind(source)
@@ -79,7 +76,7 @@ pub async fn wipe_playlist(pool: &SqlitePool) -> Result<(), NeptuneError> {
 mod tests {
     use sqlx::sqlite::SqlitePoolOptions;
 
-    use super::{get_playlist_meta, is_playlist_loaded, save_playlist_meta, wipe_playlist};
+    use super::{is_playlist_loaded, list_playlist_meta, save_playlist_meta, wipe_playlist};
     use crate::db::migrations;
 
     #[tokio::test]
@@ -116,21 +113,33 @@ mod tests {
         save_playlist_meta(&pool, "local-file.m3u8", "local", 1, 1, 0)
             .await
             .expect("meta save should succeed");
-        let meta = get_playlist_meta(&pool)
+        let list = list_playlist_meta(&pool)
             .await
-            .expect("meta query should succeed")
-            .expect("meta should exist");
+            .expect("meta query should succeed");
+        assert_eq!(list.len(), 1);
+        let meta = &list[0];
+        assert_eq!(meta.id, 1);
         assert_eq!(meta.source, "local-file.m3u8");
         assert_eq!(meta.kind, "local");
         assert_eq!(meta.channel_count, 1);
         assert_eq!(meta.group_count, 1);
         assert_eq!(meta.skipped, 0);
 
+        save_playlist_meta(&pool, "other.m3u8", "local", 1, 1, 0)
+            .await
+            .expect("second meta save");
+        let list2 = list_playlist_meta(&pool)
+            .await
+            .expect("meta list should work");
+        assert_eq!(list2.len(), 2);
+        assert_eq!(list2[1].id, 2);
+        assert_eq!(list2[1].source, "other.m3u8");
+
         wipe_playlist(&pool).await.expect("wipe should succeed");
         assert!(!is_playlist_loaded(&pool).await.expect("query should work"));
-        assert!(get_playlist_meta(&pool)
+        let after = list_playlist_meta(&pool)
             .await
-            .expect("meta query should succeed")
-            .is_none());
+            .expect("meta query should succeed");
+        assert!(after.is_empty());
     }
 }

@@ -18,8 +18,8 @@ function createDelegatingInvoke(adapter: NeptuneAdapter) {
     switch (cmd) {
       case "is_playlist_loaded":
         return adapter.isPlaylistLoaded();
-      case "get_playlist_meta":
-        return adapter.getPlaylistMeta();
+      case "list_playlist_meta":
+        return adapter.listPlaylistMeta();
       case "import_playlist_local":
         return adapter.importPlaylistLocal(String(ar.path));
       case "import_playlist_remote":

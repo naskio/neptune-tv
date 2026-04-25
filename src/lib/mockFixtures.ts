@@ -3,7 +3,7 @@ import type { Channel, ChannelId, Group, PlaylistMeta, Timestamp } from "./types
 export interface MockState {
   groups: Map<string, Group>;
   channels: Map<ChannelId, Channel>;
-  meta: PlaylistMeta | null;
+  metas: PlaylistMeta[];
   /** Monotonic id for any future inserts (tests). */
   nextChannelId: number;
 }
@@ -92,6 +92,24 @@ function pickZipfIndex(rng: () => number, n: number): number {
   return n - 1;
 }
 
+function recomputeGroupChannelCounts(
+  groups: Map<string, Group>,
+  channels: Map<ChannelId, Channel>,
+): void {
+  for (const g of groups.values()) {
+    g.channelCount = 0;
+  }
+  for (const c of channels.values()) {
+    if (c.blockedAt !== null) {
+      continue;
+    }
+    const g = groups.get(c.groupTitle);
+    if (g) {
+      g.channelCount += 1;
+    }
+  }
+}
+
 /**
  * Deterministic in-memory dataset (~50 groups, ~5k channels) for `mockAdapter` / `yarn dev`.
  */
@@ -150,30 +168,71 @@ export function seedMockData(seed: number = 42): MockState {
       blockedAt: null,
     };
     channels.set(id, ch);
-    const group = groups.get(groupTitle);
-    if (group) {
-      group.channelCount += 1;
-    }
   }
 
-  const skipped = 7;
-  const meta: PlaylistMeta = {
-    source: "mock://seed",
-    kind: "local",
-    importedAt: nowish,
-    channelCount: CHANNEL_TARGET,
-    groupCount: GROUP_TITLES.length,
-    skipped,
-  };
+  recomputeGroupChannelCounts(groups, channels);
 
-  return { groups, channels, meta, nextChannelId: CHANNEL_TARGET + 1 };
+  const skipped = 7;
+  const metas: PlaylistMeta[] = [
+    {
+      id: 1,
+      source: "mock://seed",
+      kind: "local",
+      importedAt: nowish,
+      channelCount: CHANNEL_TARGET,
+      groupCount: GROUP_TITLES.length,
+      skipped,
+    },
+  ];
+
+  return { groups, channels, metas, nextChannelId: CHANNEL_TARGET + 1 };
+}
+
+/**
+ * Merges a fresh `seedMockData` batch into an existing state (renumbered channel ids) and appends
+ * a `PlaylistMeta` row — mirrors append-only import behaviour in the Tauri build.
+ */
+export function appendMockSeedData(
+  base: MockState,
+  seed: number,
+  source: string,
+  kind: "local" | "remote",
+): MockState {
+  const batch = seedMockData(seed);
+  const startId = base.nextChannelId;
+  for (const [oldId, ch] of batch.channels) {
+    const newId = (startId - 1 + (oldId as number)) as ChannelId;
+    base.channels.set(newId, {
+      ...ch,
+      id: newId,
+      streamUrl: `https://stream.example.test/ch/${newId}`,
+    });
+  }
+  for (const [title, g] of batch.groups) {
+    if (!base.groups.has(title)) {
+      base.groups.set(title, { ...g, channelCount: 0 });
+    }
+  }
+  recomputeGroupChannelCounts(base.groups, base.channels);
+  const newMeta: PlaylistMeta = {
+    id: base.metas.length + 1,
+    source,
+    kind,
+    importedAt: Math.floor(Date.now() / 1000),
+    channelCount: batch.metas[0]!.channelCount,
+    groupCount: batch.metas[0]!.groupCount,
+    skipped: batch.metas[0]!.skipped,
+  };
+  base.metas = [...base.metas, newMeta];
+  base.nextChannelId = startId + batch.channels.size;
+  return base;
 }
 
 export function createEmptyMockState(): MockState {
   return {
     groups: new Map(),
     channels: new Map(),
-    meta: null,
+    metas: [],
     nextChannelId: 1,
   };
 }

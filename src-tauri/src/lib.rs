@@ -1,8 +1,8 @@
 mod cursor;
 mod db;
 mod error;
-mod external_player;
 mod events;
+mod external_player;
 mod importer;
 mod parser;
 mod state;
@@ -27,10 +27,10 @@ async fn is_playlist_loaded(state: tauri::State<'_, AppState>) -> Result<bool, N
 }
 
 #[tauri::command]
-async fn get_playlist_meta(
+async fn list_playlist_meta(
     state: tauri::State<'_, AppState>,
-) -> Result<Option<PlaylistMeta>, NeptuneError> {
-    db::playlist::get_playlist_meta(&state.pool).await
+) -> Result<Vec<PlaylistMeta>, NeptuneError> {
+    db::playlist::list_playlist_meta(&state.pool).await
 }
 
 async fn start_import(
@@ -46,8 +46,6 @@ async fn start_import(
             return Err(NeptuneError::ImportAlreadyRunning);
         }
     }
-
-    db::playlist::wipe_playlist(&state.pool).await?;
 
     let import_handle = ImportHandle::new();
     {
@@ -104,7 +102,6 @@ async fn start_import(
                 );
             }
             Err(NeptuneError::ImportCancelled) => {
-                let _ = db::playlist::wipe_playlist(&pool).await;
                 {
                     let mut progress = progress_state.lock().await;
                     *progress = ImportProgress {
@@ -119,7 +116,6 @@ async fn start_import(
                 let _ = emit_cancelled(&app);
             }
             Err(err) => {
-                let _ = db::playlist::wipe_playlist(&pool).await;
                 {
                     let mut progress = progress_state.lock().await;
                     *progress = ImportProgress {
@@ -380,7 +376,7 @@ async fn play_channel(
 ) -> Result<(), NeptuneError> {
     let id = validate_id(id, "id")?;
     let stream_url = db::channels::get_channel_stream_url(&state.pool, id).await?;
-    external_player::open_stream_in_external_player(&app, stream_url.as_str())?;
+    external_player::open_stream_in_external_player(&app, stream_url.as_str()).await?;
     db::channels::mark_channel_watched(&state.pool, id).await?;
     Ok(())
 }
@@ -399,7 +395,7 @@ pub fn run() {
         })
         .invoke_handler(tauri::generate_handler![
             is_playlist_loaded,
-            get_playlist_meta,
+            list_playlist_meta,
             import_playlist_local,
             import_playlist_remote,
             cancel_import,

@@ -1,5 +1,11 @@
 import { encodeCursorJson } from "./cursorCodec";
-import { createEmptyMockState, mockGroupCount, seedMockData, type MockState } from "./mockFixtures";
+import {
+  appendMockSeedData,
+  createEmptyMockState,
+  mockGroupCount,
+  seedMockData,
+  type MockState,
+} from "./mockFixtures";
 import type { NeptuneAdapter } from "./neptuneAdapter";
 import {
   NeptuneClientError,
@@ -13,7 +19,6 @@ import {
   type ImportProgress,
   type ImportProgressEvent,
   type ImportPhase,
-  type PlaylistMeta,
   type SortMode,
 } from "./types";
 
@@ -376,13 +381,11 @@ function startMockImport(kind: "local" | "remote", sourceLabel: string): void {
   if (importRun) {
     throw new NeptuneClientError("importAlreadyRunning", "import is already running");
   }
-  state = createEmptyMockState();
   const my = ++importToken;
   const cancel = (): void => {
     if (importToken === my) {
       importToken += 1;
       importRun = null;
-      state = createEmptyMockState();
       importProgress = {
         phase: "cancelled",
         inserted: 0,
@@ -423,29 +426,34 @@ function startMockImport(kind: "local" | "remote", sourceLabel: string): void {
     };
     emitProgress({ phase: "channels", inserted: ic, groups: gr, skipped: 0 });
     if (step >= steps) {
-      const seeded = seedMockData(42);
-      const meta: PlaylistMeta = {
-        source: sourceLabel,
-        kind,
-        importedAt: nowSec(),
-        channelCount: seeded.meta!.channelCount,
-        groupCount: seeded.meta!.groupCount,
-        skipped: seeded.meta!.skipped,
-      };
-      state = { ...seeded, meta };
+      if (state.channels.size === 0) {
+        state = seedMockData(42);
+        const m0 = state.metas[0]!;
+        state.metas = [
+          {
+            ...m0,
+            source: sourceLabel,
+            kind,
+            importedAt: nowSec(),
+          },
+        ];
+      } else {
+        appendMockSeedData(state, 42 + state.metas.length, sourceLabel, kind);
+      }
+      const last = state.metas[state.metas.length - 1]!;
       importRun = null;
       importProgress = {
         phase: "completed",
-        inserted: 5_000,
-        groups: mockGroupCount,
-        skipped: meta.skipped,
+        inserted: last.channelCount,
+        groups: last.groupCount,
+        skipped: last.skipped,
         source: sourceLabel,
         message: null,
       };
       emitComplete({
-        channels: 5_000,
-        groups: mockGroupCount,
-        skipped: meta.skipped,
+        channels: last.channelCount,
+        groups: last.groupCount,
+        skipped: last.skipped,
         source: sourceLabel,
       });
       return;
@@ -481,8 +489,8 @@ export const mockAdapter: NeptuneAdapter = {
   async isPlaylistLoaded() {
     return state.channels.size > 0;
   },
-  async getPlaylistMeta() {
-    return state.meta;
+  async listPlaylistMeta() {
+    return [...state.metas];
   },
   async importPlaylistLocal(path: string) {
     startMockImport("local", path);

@@ -26,7 +26,7 @@ function makeStubAdapter(overrides: Partial<NeptuneAdapter>): NeptuneAdapter {
   const ok = <T>(v: T) => vi.fn().mockResolvedValue(v);
   const base: NeptuneAdapter = {
     isPlaylistLoaded: ok(false),
-    getPlaylistMeta: ok(null),
+    listPlaylistMeta: ok([]),
     importPlaylistLocal: ok(undefined),
     importPlaylistRemote: ok(undefined),
     cancelImport: ok(undefined),

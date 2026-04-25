@@ -10,7 +10,7 @@ import { useUiStore } from "@/store/uiStore";
 import { GlobalSearchInput } from "./Header/GlobalSearchInput";
 import { HeaderMenu } from "./Header/HeaderMenu";
 import { ImportProgressBar } from "./Header/ImportProgressBar";
-import { PlaylistInfoBadge } from "./Header/PlaylistInfoBadge";
+import { PlaylistImportInfoButton } from "./Header/PlaylistImportInfoButton";
 import { SortToggle } from "./Header/SortToggle";
 import { ThemeToggle } from "./Header/ThemeToggle";
 
@@ -79,13 +79,16 @@ export function AppHeader() {
           </div>
           <div className="ms-auto flex shrink-0 items-center gap-1 sm:gap-2">
             <SortToggle />
+            {importPhase !== "running" ? <PlaylistImportInfoButton /> : null}
             <ThemeToggle />
             <HeaderMenu />
           </div>
         </div>
-        <div className="flex min-h-5 min-w-0 flex-wrap items-end gap-2">
-          {importPhase === "running" ? <ImportProgressBar /> : <PlaylistInfoBadge />}
-        </div>
+        {importPhase === "running" ? (
+          <div className="flex min-h-5 min-w-0 flex-wrap items-end gap-2">
+            <ImportProgressBar />
+          </div>
+        ) : null}
       </div>
     </header>
   );

@@ -41,8 +41,9 @@ export const en = {
     },
     playlistMenu: {
       sectionLabel: "Playlist",
-      openDifferent: "Open different playlist…",
-      closePlaylist: "Close playlist",
+      addLocalPlaylist: "Add local playlist…",
+      addRemotePlaylist: "Add remote playlist…",
+      clearData: "Clear all data",
       themeLabel: "Theme",
       themeLight: "Light",
       themeDark: "Dark",
@@ -57,9 +58,16 @@ export const en = {
     },
     progress: "Importing… {{count, number}} channels",
     badge: {
-      imported: "Imported {{when}}",
-      stats: "{{channels, number}} ch · {{groups, number}} groups",
+      tooltipHeading: "Imported playlists",
       detailsButton: "Playlist import details",
+      labelSource: "Source",
+      labelKind: "Type",
+      labelImported: "Imported",
+      labelChannels: "Channels",
+      labelGroups: "Groups",
+      labelSkipped: "Skipped",
+      kindLocal: "Local file",
+      kindRemote: "Remote URL",
     },
   },
 
@@ -132,16 +140,11 @@ export const en = {
   confirm: {
     cancel: "Cancel",
     confirm: "Confirm",
-    openDifferent: {
-      title: "Open a different playlist?",
+    clearData: {
+      title: "Clear all data?",
       description:
-        "The current playlist will be removed and all playlist data will be lost. This cannot be undone.",
-      confirmLabel: "Continue",
-    },
-    closePlaylist: {
-      title: "Close playlist?",
-      description: "All data will be permanently deleted from this device.",
-      confirmLabel: "Delete",
+        "All imported playlists and their data will be permanently deleted from this device. This cannot be undone.",
+      confirmLabel: "Clear all data",
     },
   },
 
@@ -197,6 +200,8 @@ export const en = {
       "Imported {{channels, number}} channels, {{groups, number}} groups. {{skipped, number}} entries skipped.",
     importCancelled: "Import cancelled.",
     ipcFailed: "Something went wrong ({{command}}): {{message}}",
+    vlcFallback:
+      "Could not start VLC (not installed, blocked, or unavailable). The stream was opened with your default app instead.",
   },
 
   windowTitle: {
