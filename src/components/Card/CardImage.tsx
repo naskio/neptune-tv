@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import ChannelDefaultIcon from "@/assets/channel-default.svg?react";
 import GroupDefaultIcon from "@/assets/group-default.svg?react";
 import channelDefaultAssetUrl from "@/assets/channel-default.svg?url";
@@ -47,13 +47,9 @@ export function CardImage({
   kind: "group" | "channel";
   className?: string;
 }) {
-  const [showDefaultIcon, setShowDefaultIcon] = useState(
-    src == null || isDefaultIconSrc(src, kind),
-  );
-
-  useEffect(() => {
-    setShowDefaultIcon(src == null || isDefaultIconSrc(src, kind));
-  }, [src, kind]);
+  const showDefaultFromProps = src == null || isDefaultIconSrc(src, kind);
+  const [failedSrc, setFailedSrc] = useState<string | null>(null);
+  const showDefaultIcon = showDefaultFromProps || (src != null && failedSrc === src);
 
   if (showDefaultIcon) {
     return <DefaultFallbackIcon kind={kind} alt={alt} className={className} />;
@@ -66,7 +62,7 @@ export function CardImage({
       loading="lazy"
       className={cn("h-full w-full object-contain p-3", className)}
       onError={() => {
-        setShowDefaultIcon(true);
+        if (src) setFailedSrc(src);
       }}
     />
   );

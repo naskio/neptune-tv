@@ -1,7 +1,8 @@
-import { render, screen } from "@testing-library/react";
+import { screen } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { render } from "@/test/renderWithAppProviders";
 import { BrowserPage } from "@/pages/BrowserPage";
 import { useUiStore } from "@/store/uiStore";
 

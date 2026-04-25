@@ -1,7 +1,8 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { beforeEach, describe, expect, it } from "vitest";
 
+import { render } from "@/test/renderWithAppProviders";
 import { BlockedPage } from "@/pages/BlockedPage";
 import { mockAdapter, resetMockAdapterStateForTests } from "@/lib/adapter";
 import { seedMockData } from "@/lib/mockFixtures";

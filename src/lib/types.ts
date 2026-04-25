@@ -27,7 +27,7 @@ export interface Group {
   channelCount: number;
 }
 
-export interface GroupDetail extends Group {}
+export type GroupDetail = Group;
 
 export interface Channel {
   id: ChannelId;

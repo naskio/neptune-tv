@@ -3,7 +3,7 @@ import { XIcon } from "lucide-react";
 
 import { Sidebar } from "@/components/Sidebar";
 import { Button } from "@/components/ui/button";
-import { Sheet, SheetClose, SheetContent } from "@/components/ui/sheet";
+import { Sheet, SheetClose, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import { useIsMobile } from "@/hooks/useIsMobile";
 import { useUiStore } from "@/store/uiStore";
 
@@ -27,10 +27,13 @@ export function ResponsiveSidebarSheet() {
       <SheetContent
         side={side}
         showCloseButton={false}
+        aria-describedby={undefined}
         className="flex w-full flex-col gap-0 p-0 sm:max-w-sm data-[side=bottom]:h-[100dvh] data-[side=bottom]:max-h-[100dvh]"
       >
         <div className="flex shrink-0 items-center justify-between border-b border-border bg-sidebar px-2 py-2">
-          <h2 className="text-sm font-semibold tracking-tight">{t("sidebar.heading")}</h2>
+          <SheetTitle className="text-sm font-semibold tracking-tight">
+            {t("sidebar.heading")}
+          </SheetTitle>
           <SheetClose asChild>
             <Button
               variant="ghost"

@@ -1,6 +1,7 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { screen, waitFor } from "@testing-library/react";
 import { beforeEach, describe, expect, it } from "vitest";
 
+import { render } from "@/test/renderWithAppProviders";
 import { BrowserPage } from "@/pages/BrowserPage";
 import { GroupDetailView } from "@/pages/Browser/GroupDetailView";
 import { VIRTUAL_FAVORITE_GROUPS } from "@/store/constants";
